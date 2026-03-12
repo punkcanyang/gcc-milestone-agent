@@ -10,7 +10,9 @@
     "start": "node src/cli.js",
     "dev": "node --watch src/cli.js",
     "test": "node --test",
-    "demo": "node src/cli.js --repo gcc-foundation/gcc-openclaw-grants --milestone \"submission template, issue discussion, open source workflow\" --since 2026-03-01 --out ./demo-report.md --json-out ./demo-report.json"
+    "demo": "node src/cli.js --repo gcc-foundation/gcc-openclaw-grants --milestone \"submission template, issue discussion, open source workflow\" --since 2026-03-01 --out ./demo-report.md --json-out ./demo-report.json",
+    "demo:gcc": "node src/cli.js --repo gcc-foundation/gcc-openclaw-grants --milestone \"GCC allocation verification\" --profile gcc-allocation --since 2026-03-01 --out ./demo-gcc-report.md --json-out ./demo-gcc-report.json",
+    "demo:html": "node src/cli.js --repo gcc-foundation/gcc-openclaw-grants --milestone \"GCC allocation verification\" --profile gcc-allocation --since 2026-03-01 --out ./demo-gcc-report.md --json-out ./demo-gcc-report.json --html-out ./demo-gcc-report.html"
   },
   "dependencies": {
     "commander": "^13.1.0",

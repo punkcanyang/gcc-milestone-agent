@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import yaml from 'js-yaml';
+import { evaluateSemanticVerdict } from './semantic-evaluator.js';
 
 function normalizeKeyword(word) {
   return word
@@ -72,10 +73,12 @@ function matchRule(rule, evidenceItems) {
     }
   }
 
+  const sampleLinks = hits.slice(0, 3);
   return {
     matched: hits.length > 0,
     hitCount: hits.length,
-    sampleLinks: hits.slice(0, 3)
+    sampleLinks,
+    semantic: evaluateSemanticVerdict(rule, hits)
   };
 }
 

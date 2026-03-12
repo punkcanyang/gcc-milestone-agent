@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { evaluateMilestoneRules, loadRulesFromFile } from './rule-engine.js';
+import { renderHtmlReport } from './html-report.js';
 
 const GITHUB_API = 'https://api.github.com';
 
@@ -142,14 +143,19 @@ function buildRuleSection(ruleEval) {
     const samples = r.result.sampleLinks.length
       ? r.result.sampleLinks.map((s) => `  - ${s.url} (matched: ${s.matchedKeywords.join(', ')})`).join('\n')
       : '  - (no matching evidence)';
-    return `- ${icon} ${r.id}: ${r.text}\n${samples}`;
+    const sem = r.result.semantic;
+    const semanticLine = sem
+      ? `  - semantic: ${sem.verdict}, confidence=${sem.confidence}, coverage=${sem.keywordCoverage}%\n  - rationale: ${sem.rationale}`
+      : '  - semantic: n/a';
+    return `- ${icon} ${r.id}: ${r.text}\n${samples}\n${semanticLine}`;
   }).join('\n')}\n`;
 }
 
-function buildReport({ repo, milestone, since, score, status, activityScore, counts, links, ruleEval }) {
+function buildReport({ repo, milestone, since, profile, score, status, activityScore, counts, links, ruleEval }) {
   return `# Milestone Verification Report\n\n` +
     `- Repo: ${repo}\n` +
     `- Milestone: ${milestone}\n` +
+    `- Profile: ${profile || 'none'}\n` +
     `- Since: ${since ?? 'N/A'}\n` +
     `- Result: **${status}**\n` +
     `- Score: **${score}/100**\n` +
@@ -171,11 +177,12 @@ function buildReport({ repo, milestone, since, score, status, activityScore, cou
     `- Keep human final approval (human-in-the-loop) before any fund allocation decision.\n`;
 }
 
-function buildJsonReport({ repo, milestone, sinceIso, score, status, activityScore, counts, ruleEval, links }) {
+function buildJsonReport({ repo, milestone, sinceIso, profile, score, status, activityScore, counts, ruleEval, links }) {
   return {
     generatedAt: new Date().toISOString(),
     repo,
     milestone,
+    profile: profile || null,
     since: sinceIso,
     status,
     score,
@@ -188,7 +195,19 @@ function buildJsonReport({ repo, milestone, sinceIso, score, status, activitySco
   };
 }
 
-export async function runMilestoneCheck({ repo, milestone, since, out, jsonOut, rulesFile }) {
+function resolveProfileRulesFile(profile) {
+  if (!profile) return null;
+  const builtIn = {
+    'gcc-allocation': './profiles/gcc-allocation.yaml'
+  };
+  const found = builtIn[profile];
+  if (!found) {
+    throw new Error(`Unknown profile: ${profile}. Available: ${Object.keys(builtIn).join(', ')}`);
+  }
+  return found;
+}
+
+export async function runMilestoneCheck({ repo, milestone, since, out, jsonOut, htmlOut, rulesFile, profile }) {
   const sinceIso = normalizeDate(since);
   const { owner, name } = parseRepo(repo);
   const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
@@ -202,13 +221,16 @@ export async function runMilestoneCheck({ repo, milestone, since, out, jsonOut, 
     releases: evidence.releases.length
   };
 
-  const rules = rulesFile ? await loadRulesFromFile(rulesFile) : null;
+  const profileRulesFile = resolveProfileRulesFile(profile);
+  const effectiveRulesFile = rulesFile || profileRulesFile;
+  const rules = effectiveRulesFile ? await loadRulesFromFile(effectiveRulesFile) : null;
   const ruleEval = evaluateMilestoneRules(milestone, evidence.evidenceItems, rules);
   const { score, status, activityScore } = scoreEvidence({ ...counts, rulePassRate: ruleEval.passRate });
 
   const report = buildReport({
     repo,
     milestone,
+    profile,
     since: sinceIso,
     score,
     status,
@@ -221,27 +243,37 @@ export async function runMilestoneCheck({ repo, milestone, since, out, jsonOut, 
   const reportPath = path.resolve(process.cwd(), out);
   await fs.writeFile(reportPath, report, 'utf8');
 
+  const payload = buildJsonReport({
+    repo,
+    milestone,
+    profile,
+    sinceIso,
+    score,
+    status,
+    activityScore,
+    counts,
+    ruleEval,
+    links: evidence.links
+  });
+
   let jsonReportPath = null;
   if (jsonOut) {
-    const payload = buildJsonReport({
-      repo,
-      milestone,
-      sinceIso,
-      score,
-      status,
-      activityScore,
-      counts,
-      ruleEval,
-      links: evidence.links
-    });
     jsonReportPath = path.resolve(process.cwd(), jsonOut);
     await fs.writeFile(jsonReportPath, JSON.stringify(payload, null, 2), 'utf8');
+  }
+
+  let htmlReportPath = null;
+  if (htmlOut) {
+    htmlReportPath = path.resolve(process.cwd(), htmlOut);
+    const html = renderHtmlReport(payload);
+    await fs.writeFile(htmlReportPath, html, 'utf8');
   }
 
   return {
     summary: `[${status}] ${repo} milestone score ${score}/100 (activity:${activityScore} rules:${ruleEval.passRate}% commits:${counts.commits} prs:${counts.pulls} issues:${counts.issues} releases:${counts.releases})`,
     reportPath,
-    jsonReportPath
+    jsonReportPath,
+    htmlReportPath
   };
 }
 

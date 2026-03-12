@@ -1,6 +1,10 @@
 # gcc-milestone-agent (Node CLI)
 
-MVP+ CLI for GCC hackathon submission: verify grant milestone progress using GitHub evidence + rule checks, then output markdown/JSON reports.
+MVP+ CLI for GCC hackathon submission: verify grant milestone progress using GitHub evidence + rule checks, then output markdown/JSON/HTML reports.
+
+中文说明：
+- 简明版：`README.zh-CN.quick.md`
+- 详细版：`README.zh-CN.full.md`
 
 ## Quick start
 
@@ -23,6 +27,15 @@ node src/cli.js \
   --out ./demo-report.md \
   --json-out ./demo-report.json \
   --rules-file ./templates/rules.example.yaml
+
+# GCC profile run
+node src/cli.js \
+  --repo gcc-foundation/gcc-openclaw-grants \
+  --milestone "GCC allocation verification" \
+  --profile gcc-allocation \
+  --since 2026-03-01 \
+  --out ./demo-gcc-report.md \
+  --json-out ./demo-gcc-report.json
 ```
 
 ## CLI options
@@ -32,7 +45,9 @@ node src/cli.js \
 - `--since <ISO date>` optional
 - `--out <path>` markdown report path (default `./report.md`)
 - `--json-out <path>` optional JSON report path
+- `--html-out <path>` optional HTML report path
 - `--rules-file <path>` optional YAML rules file
+- `--profile <name>` built-in rule profile (`gcc-allocation`)
 
 ## Environment
 
@@ -49,6 +64,8 @@ export GH_TOKEN=your_github_pat
 ```bash
 npm test
 npm run demo
+npm run demo:gcc
+npm run demo:html
 ```
 
 ## Current status

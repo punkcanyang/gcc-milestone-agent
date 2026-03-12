@@ -12,13 +12,18 @@ program
   .option('--since <date>', 'Only collect evidence after ISO date')
   .option('--out <path>', 'Output markdown report path', './report.md')
   .option('--json-out <path>', 'Optional JSON report output path')
+  .option('--html-out <path>', 'Optional HTML report output path')
   .option('--rules-file <path>', 'Optional YAML rules file path')
+  .option('--profile <name>', 'Built-in profile name (e.g. gcc-allocation)')
   .action(async (options) => {
     const result = await runMilestoneCheck(options);
     console.log(result.summary);
     console.log(`Report written: ${result.reportPath}`);
     if (result.jsonReportPath) {
       console.log(`JSON report written: ${result.jsonReportPath}`);
+    }
+    if (result.htmlReportPath) {
+      console.log(`HTML report written: ${result.htmlReportPath}`);
     }
   });
 

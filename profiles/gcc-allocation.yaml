@@ -1,0 +1,20 @@
+rules:
+  - id: GCC-A1
+    text: Milestone scope is clearly documented
+    keywords: [milestone, scope, deliverable, docs]
+
+  - id: GCC-A2
+    text: Submission issue or discussion thread exists
+    keywords: [submission, issue, discussion]
+
+  - id: GCC-A3
+    text: Work artifacts are publicly traceable
+    keywords: [commit, pr, release, repository]
+
+  - id: GCC-A4
+    text: Workflow and process transparency are described
+    keywords: [workflow, process, transparency, public]
+
+  - id: GCC-A5
+    text: Verification output includes evidence links
+    keywords: [evidence, link, report, verification]
