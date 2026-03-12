@@ -1,0 +1,12 @@
+rules:
+  - id: R1
+    text: Submission template provided
+    keywords: [submission, template]
+
+  - id: R2
+    text: Public issue discussion exists
+    keywords: [issue, discussion]
+
+  - id: R3
+    text: Workflow documentation updated
+    keywords: [workflow, docs]

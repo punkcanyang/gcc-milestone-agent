@@ -1,0 +1,11 @@
+rules:
+  - id: R-Template
+    text: Submission template exists
+    keywords:
+      - submission
+      - template
+  - id: R-Discussion
+    text: Issue discussion is active
+    keywords:
+      - issue
+      - discussion

@@ -1,26 +1,42 @@
 # gcc-milestone-agent (Node CLI)
 
-MVP CLI for GCC hackathon submission: generate a milestone verification report with evidence summary and recommendation score.
+MVP+ CLI for GCC hackathon submission: verify grant milestone progress using GitHub evidence + rule checks, then output markdown/JSON reports.
 
 ## Quick start
 
 ```bash
 cd projects/gcc-milestone-agent
 npm install
-node src/cli.js --repo gcc-foundation/gcc-openclaw-grants --milestone "Publish hackathon workflow docs" --since 2026-03-01 --out ./demo-report.md
+
+# Basic run (markdown)
+node src/cli.js \
+  --repo gcc-foundation/gcc-openclaw-grants \
+  --milestone "submission template, issue discussion, open source workflow" \
+  --since 2026-03-01 \
+  --out ./demo-report.md
+
+# Advanced run (markdown + json + custom rules)
+node src/cli.js \
+  --repo gcc-foundation/gcc-openclaw-grants \
+  --milestone "submission template, issue discussion, open source workflow" \
+  --since 2026-03-01 \
+  --out ./demo-report.md \
+  --json-out ./demo-report.json \
+  --rules-file ./templates/rules.example.yaml
 ```
 
-## Current status
+## CLI options
 
-- ✅ CLI scaffolding complete
-- ✅ GitHub REST collector connected (commits/PR/issues/releases)
-- ✅ Evidence-link markdown output
-- ✅ Rule engine v1 (keyword heuristic from milestone text)
-- ⚠️ Semantic milestone matching can be improved further
+- `--repo <owner/name>` required
+- `--milestone <text>` required
+- `--since <ISO date>` optional
+- `--out <path>` markdown report path (default `./report.md`)
+- `--json-out <path>` optional JSON report path
+- `--rules-file <path>` optional YAML rules file
 
 ## Environment
 
-Optional (recommended for higher rate limits):
+Optional (recommended for higher GitHub API rate limits):
 
 ```bash
 export GITHUB_TOKEN=your_github_pat
@@ -28,8 +44,25 @@ export GITHUB_TOKEN=your_github_pat
 export GH_TOKEN=your_github_pat
 ```
 
+## Quality checks
+
+```bash
+npm test
+npm run demo
+```
+
+## Current status
+
+- ✅ CLI scaffolding complete
+- ✅ GitHub REST collector connected (commits/PR/issues/releases)
+- ✅ Rule engine v1 (milestone parsing + YAML external rules)
+- ✅ Markdown + JSON dual output
+- ✅ Retry handling for GitHub transient failures (5xx/429)
+- ✅ Unit tests (Node test runner)
+- ⚠️ Rule matching is keyword-based; semantic reasoning is next step
+
 ## Next milestones
 
-1. Rule-based checker from milestone text
-2. Per-rule rationale and pass/fail traces
-3. Optional JSON output for downstream automation
+1. Semantic rule reasoning with confidence scores
+2. Per-rule explainability snippets (quoted evidence text)
+3. Optional dashboard view for reviewer demo

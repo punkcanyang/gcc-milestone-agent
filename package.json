@@ -1,6 +1,6 @@
 {
   "name": "gcc-milestone-agent",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "bin": {
@@ -8,9 +8,12 @@
   },
   "scripts": {
     "start": "node src/cli.js",
-    "dev": "node --watch src/cli.js"
+    "dev": "node --watch src/cli.js",
+    "test": "node --test",
+    "demo": "node src/cli.js --repo gcc-foundation/gcc-openclaw-grants --milestone \"submission template, issue discussion, open source workflow\" --since 2026-03-01 --out ./demo-report.md --json-out ./demo-report.json"
   },
   "dependencies": {
-    "commander": "^13.1.0"
+    "commander": "^13.1.0",
+    "js-yaml": "^4.1.0"
   }
 }

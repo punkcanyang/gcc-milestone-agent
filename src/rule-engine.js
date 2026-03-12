@@ -1,3 +1,13 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import yaml from 'js-yaml';
+
+function normalizeKeyword(word) {
+  return word
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}_-]/gu, '');
+}
+
 function splitMilestoneToRules(milestoneText) {
   const text = String(milestoneText || '').trim();
   if (!text) return [];
@@ -15,12 +25,33 @@ function splitMilestoneToRules(milestoneText) {
     id: `R${idx + 1}`,
     text: part,
     keywords: part
-      .toLowerCase()
       .split(/\s+/)
-      .map((w) => w.replace(/[^\p{L}\p{N}_-]/gu, ''))
+      .map(normalizeKeyword)
       .filter((w) => w.length >= 3)
       .slice(0, 8)
   }));
+}
+
+function normalizeExternalRules(rules) {
+  return (rules || []).map((r, idx) => ({
+    id: r.id || `R${idx + 1}`,
+    text: r.text || `Rule ${idx + 1}`,
+    keywords: (r.keywords || [])
+      .map((k) => normalizeKeyword(String(k)))
+      .filter((k) => k.length >= 2)
+  }));
+}
+
+export async function loadRulesFromFile(filePath) {
+  const abs = path.resolve(process.cwd(), filePath);
+  const raw = await fs.readFile(abs, 'utf8');
+  const parsed = yaml.load(raw);
+
+  if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.rules)) {
+    throw new Error(`Invalid rules file: ${filePath}. Expected YAML with top-level 'rules' array.`);
+  }
+
+  return normalizeExternalRules(parsed.rules);
 }
 
 function evidenceText(item) {
@@ -48,8 +79,8 @@ function matchRule(rule, evidenceItems) {
   };
 }
 
-export function evaluateMilestoneRules(milestoneText, evidenceItems) {
-  const rules = splitMilestoneToRules(milestoneText);
+export function evaluateMilestoneRules(milestoneText, evidenceItems, externalRules = null) {
+  const rules = externalRules?.length ? externalRules : splitMilestoneToRules(milestoneText);
   if (!rules.length) {
     return { rules: [], passRate: 0, passed: 0, total: 0 };
   }
@@ -65,3 +96,9 @@ export function evaluateMilestoneRules(milestoneText, evidenceItems) {
 
   return { rules: evaluated, passRate, passed, total };
 }
+
+export const _internal = {
+  splitMilestoneToRules,
+  normalizeExternalRules,
+  normalizeKeyword
+};

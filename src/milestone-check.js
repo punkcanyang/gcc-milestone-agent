@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { evaluateMilestoneRules } from './rule-engine.js';
+import { evaluateMilestoneRules, loadRulesFromFile } from './rule-engine.js';
 
 const GITHUB_API = 'https://api.github.com';
 
@@ -31,19 +31,36 @@ function scoreEvidence({ commits, pulls, issues, releases, rulePassRate }) {
   return { score, status, activityScore };
 }
 
-async function githubFetch(url, token) {
+async function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function githubFetch(url, token, retries = 2) {
   const headers = {
     Accept: 'application/vnd.github+json',
     'User-Agent': 'gcc-milestone-agent'
   };
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(url, { headers });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`GitHub API ${res.status} ${res.statusText}: ${body.slice(0, 300)}`);
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      const res = await fetch(url, { headers });
+      if (res.ok) return res.json();
+
+      const body = await res.text();
+      const retriable = res.status >= 500 || res.status === 429;
+      if (!retriable || attempt === retries) {
+        throw new Error(`GitHub API ${res.status} ${res.statusText}: ${body.slice(0, 300)}`);
+      }
+      const retryAfter = Number(res.headers.get('retry-after') || '0');
+      await sleep((retryAfter || 1 + attempt) * 1000);
+    } catch (error) {
+      if (attempt === retries) throw error;
+      await sleep((attempt + 1) * 1000);
+    }
   }
-  return res.json();
+
+  throw new Error('Unexpected githubFetch flow');
 }
 
 async function collectEvidence({ owner, name, sinceIso, token }) {
@@ -118,6 +135,17 @@ function listOrNone(items) {
   return items.map((url) => `- ${url}\n`).join('');
 }
 
+function buildRuleSection(ruleEval) {
+  if (!ruleEval.rules.length) return '- No parseable rules from milestone text.\n';
+  return `${ruleEval.rules.map((r) => {
+    const icon = r.result.matched ? '✅' : '❌';
+    const samples = r.result.sampleLinks.length
+      ? r.result.sampleLinks.map((s) => `  - ${s.url} (matched: ${s.matchedKeywords.join(', ')})`).join('\n')
+      : '  - (no matching evidence)';
+    return `- ${icon} ${r.id}: ${r.text}\n${samples}`;
+  }).join('\n')}\n`;
+}
+
 function buildReport({ repo, milestone, since, score, status, activityScore, counts, links, ruleEval }) {
   return `# Milestone Verification Report\n\n` +
     `- Repo: ${repo}\n` +
@@ -137,20 +165,30 @@ function buildReport({ repo, milestone, since, score, status, activityScore, cou
     `### Pull Requests\n${listOrNone(links.pulls)}` +
     `### Issues\n${listOrNone(links.issues)}` +
     `### Releases\n${listOrNone(links.releases)}` +
-    `\n## Rule Evaluation\n` +
-    `${ruleEval.rules.length ? ruleEval.rules.map((r) => {
-      const icon = r.result.matched ? '✅' : '❌';
-      const samples = r.result.sampleLinks.length
-        ? r.result.sampleLinks.map((s) => `  - ${s.url} (matched: ${s.matchedKeywords.join(', ')})`).join('\n')
-        : '  - (no matching evidence)';
-      return `- ${icon} ${r.id}: ${r.text}\n${samples}`;
-    }).join('\n') : '- No parseable rules from milestone text.'}\n\n` +
+    `\n## Rule Evaluation\n${buildRuleSection(ruleEval)}\n` +
     `## Risk Notes\n` +
     `- Rule engine currently uses keyword heuristics and should be reviewed by humans.\n` +
     `- Keep human final approval (human-in-the-loop) before any fund allocation decision.\n`;
 }
 
-export async function runMilestoneCheck({ repo, milestone, since, out }) {
+function buildJsonReport({ repo, milestone, sinceIso, score, status, activityScore, counts, ruleEval, links }) {
+  return {
+    generatedAt: new Date().toISOString(),
+    repo,
+    milestone,
+    since: sinceIso,
+    status,
+    score,
+    activityScore,
+    rulePassRate: ruleEval.passRate,
+    ruleStats: { passed: ruleEval.passed, total: ruleEval.total },
+    evidenceCounts: counts,
+    evidenceLinks: links,
+    rules: ruleEval.rules
+  };
+}
+
+export async function runMilestoneCheck({ repo, milestone, since, out, jsonOut, rulesFile }) {
   const sinceIso = normalizeDate(since);
   const { owner, name } = parseRepo(repo);
   const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
@@ -164,8 +202,10 @@ export async function runMilestoneCheck({ repo, milestone, since, out }) {
     releases: evidence.releases.length
   };
 
-  const ruleEval = evaluateMilestoneRules(milestone, evidence.evidenceItems);
+  const rules = rulesFile ? await loadRulesFromFile(rulesFile) : null;
+  const ruleEval = evaluateMilestoneRules(milestone, evidence.evidenceItems, rules);
   const { score, status, activityScore } = scoreEvidence({ ...counts, rulePassRate: ruleEval.passRate });
+
   const report = buildReport({
     repo,
     milestone,
@@ -181,8 +221,32 @@ export async function runMilestoneCheck({ repo, milestone, since, out }) {
   const reportPath = path.resolve(process.cwd(), out);
   await fs.writeFile(reportPath, report, 'utf8');
 
+  let jsonReportPath = null;
+  if (jsonOut) {
+    const payload = buildJsonReport({
+      repo,
+      milestone,
+      sinceIso,
+      score,
+      status,
+      activityScore,
+      counts,
+      ruleEval,
+      links: evidence.links
+    });
+    jsonReportPath = path.resolve(process.cwd(), jsonOut);
+    await fs.writeFile(jsonReportPath, JSON.stringify(payload, null, 2), 'utf8');
+  }
+
   return {
     summary: `[${status}] ${repo} milestone score ${score}/100 (activity:${activityScore} rules:${ruleEval.passRate}% commits:${counts.commits} prs:${counts.pulls} issues:${counts.issues} releases:${counts.releases})`,
-    reportPath
+    reportPath,
+    jsonReportPath
   };
 }
+
+export const _internal = {
+  scoreEvidence,
+  normalizeDate,
+  parseRepo
+};

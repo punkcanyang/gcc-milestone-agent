@@ -11,10 +11,15 @@ program
   .requiredOption('--milestone <text>', 'Milestone definition text')
   .option('--since <date>', 'Only collect evidence after ISO date')
   .option('--out <path>', 'Output markdown report path', './report.md')
+  .option('--json-out <path>', 'Optional JSON report output path')
+  .option('--rules-file <path>', 'Optional YAML rules file path')
   .action(async (options) => {
     const result = await runMilestoneCheck(options);
     console.log(result.summary);
     console.log(`Report written: ${result.reportPath}`);
+    if (result.jsonReportPath) {
+      console.log(`JSON report written: ${result.jsonReportPath}`);
+    }
   });
 
 program.parseAsync(process.argv).catch((err) => {
