@@ -36,6 +36,16 @@ node src/cli.js \
   --since 2026-03-01 \
   --out ./demo-gcc-report.md \
   --json-out ./demo-gcc-report.json
+
+# Multi-source run (all providers)
+node src/cli.js \
+  --repo gcc-foundation/gcc-openclaw-grants \
+  --milestone "GCC allocation verification" \
+  --profile gcc-allocation \
+  --providers github-api,github-actions,github-community,npm-registry,url-checker \
+  --since 2026-03-01 \
+  --out ./demo-full-report.md \
+  --json-out ./demo-full-report.json
 ```
 
 ## CLI options
@@ -48,6 +58,17 @@ node src/cli.js \
 - `--html-out <path>` optional HTML report path
 - `--rules-file <path>` optional YAML rules file
 - `--profile <name>` built-in rule profile (`gcc-allocation`)
+- `--providers <list>` comma-separated evidence providers (default: `github-api`)
+
+## Available providers
+
+| Provider | What it collects |
+|----------|------------------|
+| `github-api` | Commits, PRs, issues, releases |
+| `github-actions` | CI/CD workflow runs, success rate |
+| `github-community` | Stars, forks, contributors |
+| `npm-registry` | npm package publish status |
+| `url-checker` | README external URL reachability |
 
 ## Environment
 
@@ -73,9 +94,11 @@ npm run demo:html
 - ✅ CLI scaffolding complete
 - ✅ GitHub REST collector connected (commits/PR/issues/releases)
 - ✅ Rule engine v1 (milestone parsing + YAML external rules)
-- ✅ Markdown + JSON dual output
+- ✅ Markdown + JSON + HTML triple output
 - ✅ Retry handling for GitHub transient failures (5xx/429)
 - ✅ Unit tests (Node test runner)
+- ✅ Provider architecture (multi-source evidence collection)
+- ✅ GitHub Actions, Community, npm, URL checker providers
 - ⚠️ Rule matching is keyword-based; semantic reasoning is next step
 
 ## Next milestones
@@ -83,3 +106,4 @@ npm run demo:html
 1. Semantic rule reasoning with confidence scores
 2. Per-rule explainability snippets (quoted evidence text)
 3. Optional dashboard view for reviewer demo
+4. Source-filtered rule matching (rules only match evidence from specific providers)

@@ -18,3 +18,23 @@ rules:
   - id: GCC-A5
     text: Verification output includes evidence links
     keywords: [evidence, link, report, verification]
+
+  - id: GCC-A6
+    text: CI pipeline is operational
+    keywords: [ci, workflow, pass, success]
+    source: github-actions
+
+  - id: GCC-A7
+    text: Project has community engagement
+    keywords: [contributor, stars, forks, community]
+    source: github-community
+
+  - id: GCC-A8
+    text: Package is published to registry
+    keywords: [npm, package, publish, registry]
+    source: npm-registry
+
+  - id: GCC-A9
+    text: External links in docs are reachable
+    keywords: [url, link, reachable]
+    source: url-checker

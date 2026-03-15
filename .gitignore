@@ -1,7 +1,10 @@
 node_modules/
 *.log
+report.md
 demo-report.md
 demo-report.json
 demo-gcc-report.md
 demo-gcc-report.json
 demo-gcc-report.html
+demo-full-report.md
+demo-full-report.json

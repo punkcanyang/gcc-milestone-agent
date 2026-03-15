@@ -1,7 +1,22 @@
+/**
+ * __ai_context__
+ * 模組角色：Milestone 規則引擎，負責解析 milestone 文本為可驗證的規則，並與證據進行匹配
+ * 系統位置：milestone-check.js → [本模組] → semantic-evaluator.js
+ * 核心職責：
+ *   1. 將 milestone 文本（逗號/換行分隔）拆分為獨立規則
+ *   2. 從 YAML 文件加載外部規則定義
+ *   3. 以關鍵字匹配方式評估證據是否符合規則
+ * 關鍵依賴：semantic-evaluator.js（語義評估）、js-yaml（YAML 解析）
+ */
+import assert from 'node:assert';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import yaml from 'js-yaml';
 import { evaluateSemanticVerdict } from './semantic-evaluator.js';
+
+// WHY: 統一最小關鍵字長度，避免 milestone 自動解析與外部規則行為不一致
+// 設為 2 以支援短縮寫如 "PR"、"CI" 等常見技術用語
+const MIN_KEYWORD_LENGTH = 2;
 
 function normalizeKeyword(word) {
   return word
@@ -28,18 +43,23 @@ function splitMilestoneToRules(milestoneText) {
     keywords: part
       .split(/\s+/)
       .map(normalizeKeyword)
-      .filter((w) => w.length >= 3)
+      // WHY: 使用統一常數過濾短停用詞，避免與 normalizeExternalRules 不一致
+      .filter((w) => w.length >= MIN_KEYWORD_LENGTH)
       .slice(0, 8)
   }));
 }
 
 function normalizeExternalRules(rules) {
-  return (rules || []).map((r, idx) => ({
+  // WHY: 防禦性斷言 — 確保外部規則為陣列，避免 YAML 解析結果異常
+  assert(Array.isArray(rules), `Expected rules to be an array, got ${typeof rules}`);
+
+  return rules.map((r, idx) => ({
     id: r.id || `R${idx + 1}`,
     text: r.text || `Rule ${idx + 1}`,
     keywords: (r.keywords || [])
       .map((k) => normalizeKeyword(String(k)))
-      .filter((k) => k.length >= 2)
+      // WHY: 使用與 splitMilestoneToRules 相同的 MIN_KEYWORD_LENGTH 常數
+      .filter((k) => k.length >= MIN_KEYWORD_LENGTH)
   }));
 }
 
@@ -83,6 +103,9 @@ function matchRule(rule, evidenceItems) {
 }
 
 export function evaluateMilestoneRules(milestoneText, evidenceItems, externalRules = null) {
+  // WHY: 防禦性斷言 — 確保 evidenceItems 為陣列
+  assert(Array.isArray(evidenceItems), `Expected evidenceItems to be an array, got ${typeof evidenceItems}`);
+
   const rules = externalRules?.length ? externalRules : splitMilestoneToRules(milestoneText);
   if (!rules.length) {
     return { rules: [], passRate: 0, passed: 0, total: 0 };
@@ -103,5 +126,21 @@ export function evaluateMilestoneRules(milestoneText, evidenceItems, externalRul
 export const _internal = {
   splitMilestoneToRules,
   normalizeExternalRules,
-  normalizeKeyword
+  normalizeKeyword,
+  MIN_KEYWORD_LENGTH
 };
+
+/**
+ * [For Future AI]
+ * 1. 關鍵假設：
+ *    - Milestone 文本使用逗號/分號/換行/and/| 分隔多條規則
+ *    - 關鍵字匹配為 case-insensitive 的子字串包含（非精確匹配）
+ *    - MIN_KEYWORD_LENGTH = 2 適用於中英文混合場景
+ * 2. 潛在邊界情況：
+ *    - 單行 milestone text 無分隔符時，整體視為一條規則
+ *    - 外部 YAML 規則的 keywords 為空時，該規則永遠不會 matched
+ *    - normalizeKeyword 會移除所有非字母/數字/底線/連字號的字符
+ * 3. 模組依賴：
+ *    - semantic-evaluator.js（evaluateSemanticVerdict）
+ *    - js-yaml（YAML 文件解析）
+ */
