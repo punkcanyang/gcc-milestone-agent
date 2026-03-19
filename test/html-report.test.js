@@ -76,7 +76,8 @@ test('renderHtmlReport escapes XSS in repo name', () => {
 
 test('renderHtmlReport escapes XSS in milestone', () => {
     const html = renderHtmlReport(makePayload({ milestone: '"><img onerror=alert(1)>' }));
-    assert.ok(!html.includes('onerror='), 'should not contain raw onerror');
+    assert.ok(!html.includes('<img'), 'should not contain raw img tag');
+    assert.ok(html.includes('&lt;img onerror=alert(1)&gt;'), 'should escape angle brackets in payload');
     assert.ok(html.includes('&quot;'), 'should escape quotes');
 });
 

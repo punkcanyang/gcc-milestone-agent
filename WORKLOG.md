@@ -1,5 +1,31 @@
 # WORKLOG - gcc-milestone-agent
 
+## 2026-03-19 Source Filter + 版本文檔對齊
+
+### 概要
+完成 `rules[].source` 規則來源過濾，並對齊版本號與 roadmap 文檔狀態。
+
+### 變更清單
+- `src/rule-engine.js`
+  - 支援外部規則 `source` 欄位標準化與保留
+  - 規則匹配時，若有 `source` 僅匹配對應 provider 證據
+- `src/milestone-check.js`
+  - Markdown 報告的 Rule Evaluation 加入 `[source: ...]` 標記
+- `test/rule-engine.test.js`
+  - 新增 `source` 欄位保留測試
+  - 新增來源過濾命中/不命中測試
+- `test/html-report.test.js`
+  - 修正 XSS 斷言，檢查是否輸出原始 `<img>` 標籤
+- `package.json`, `package-lock.json`
+  - 版本由 `0.2.0` 升級至 `0.3.0`
+- `TODO.md`, `README.md`
+  - 同步更新已完成項與下一步里程碑
+
+### 驗證
+- `npm test`：46 passed, 0 failed
+
+---
+
 ## 2026-03-15 代碼審查與全面修正
 
 ### 審查概要

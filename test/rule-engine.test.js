@@ -43,3 +43,56 @@ test('normalizeExternalRules preserves ids and normalizes keywords', () => {
   const out = _internal.normalizeExternalRules([{ id: 'R9', text: 'x', keywords: ['Open-Source', 'OK!'] }]);
   assert.deepEqual(out[0].keywords, ['open-source', 'ok']);
 });
+
+test('normalizeExternalRules preserves source filter when provided', () => {
+  const out = _internal.normalizeExternalRules([
+    { id: 'R10', text: 'CI is healthy', keywords: ['ci', 'success'], source: 'github-actions' }
+  ]);
+  assert.equal(out[0].source, 'github-actions');
+});
+
+test('evaluateMilestoneRules only matches evidence from the configured source', () => {
+  const rules = [
+    {
+      id: 'R-CI',
+      text: 'CI pipeline is operational',
+      keywords: ['workflow', 'success'],
+      source: 'github-actions'
+    }
+  ];
+  const evalResult = evaluateMilestoneRules(
+    'ignored milestone text',
+    [
+      { title: 'workflow success from PR metadata', body: '', url: 'https://example.com/a', source: 'github-api' },
+      { title: 'Workflow success on main', body: 'CI run passed', url: 'https://example.com/b', source: 'github-actions' }
+    ],
+    rules
+  );
+
+  assert.equal(evalResult.total, 1);
+  assert.equal(evalResult.passed, 1);
+  assert.equal(evalResult.rules[0].result.hitCount, 1);
+  assert.equal(evalResult.rules[0].result.sampleLinks[0].url, 'https://example.com/b');
+});
+
+test('evaluateMilestoneRules does not match when source filter excludes all evidence', () => {
+  const rules = [
+    {
+      id: 'R-CI',
+      text: 'CI pipeline is operational',
+      keywords: ['workflow', 'success'],
+      source: 'github-actions'
+    }
+  ];
+  const evalResult = evaluateMilestoneRules(
+    'ignored milestone text',
+    [
+      { title: 'workflow success from PR metadata', body: '', url: 'https://example.com/a', source: 'github-api' }
+    ],
+    rules
+  );
+
+  assert.equal(evalResult.total, 1);
+  assert.equal(evalResult.passed, 0);
+  assert.equal(evalResult.rules[0].result.matched, false);
+});

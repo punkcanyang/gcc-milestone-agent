@@ -99,6 +99,7 @@ function buildRuleSection(ruleEval) {
   if (!ruleEval.rules.length) return '- No parseable rules from milestone text.\n';
   return `${ruleEval.rules.map((r) => {
     const icon = r.result.matched ? '✅' : '❌';
+    const sourceTag = r.source ? ` [source: ${r.source}]` : '';
     const samples = r.result.sampleLinks.length
       ? r.result.sampleLinks.map((s) => `  - ${s.url} (matched: ${s.matchedKeywords.join(', ')})`).join('\n')
       : '  - (no matching evidence)';
@@ -106,7 +107,7 @@ function buildRuleSection(ruleEval) {
     const semanticLine = sem
       ? `  - semantic: ${sem.verdict}, confidence=${sem.confidence}, coverage=${sem.keywordCoverage}%\n  - rationale: ${sem.rationale}`
       : '  - semantic: n/a';
-    return `- ${icon} ${r.id}: ${r.text}\n${samples}\n${semanticLine}`;
+    return `- ${icon} ${r.id}: ${r.text}${sourceTag}\n${samples}\n${semanticLine}`;
   }).join('\n')}\n`;
 }
 

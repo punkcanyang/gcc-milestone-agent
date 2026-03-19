@@ -24,6 +24,12 @@ function normalizeKeyword(word) {
     .replace(/[^\p{L}\p{N}_-]/gu, '');
 }
 
+function normalizeRuleSource(source) {
+  if (typeof source !== 'string') return null;
+  const normalized = source.trim();
+  return normalized || null;
+}
+
 function splitMilestoneToRules(milestoneText) {
   const text = String(milestoneText || '').trim();
   if (!text) return [];
@@ -40,6 +46,7 @@ function splitMilestoneToRules(milestoneText) {
   return rawParts.map((part, idx) => ({
     id: `R${idx + 1}`,
     text: part,
+    source: null,
     keywords: part
       .split(/\s+/)
       .map(normalizeKeyword)
@@ -56,6 +63,7 @@ function normalizeExternalRules(rules) {
   return rules.map((r, idx) => ({
     id: r.id || `R${idx + 1}`,
     text: r.text || `Rule ${idx + 1}`,
+    source: normalizeRuleSource(r.source),
     keywords: (r.keywords || [])
       .map((k) => normalizeKeyword(String(k)))
       // WHY: 使用與 splitMilestoneToRules 相同的 MIN_KEYWORD_LENGTH 常數
@@ -84,8 +92,13 @@ function matchRule(rule, evidenceItems) {
     return { matched: false, hitCount: 0, sampleLinks: [] };
   }
 
+  // WHY: 若規則指定 source，僅在該 provider 的證據中匹配
+  const candidateEvidence = rule.source
+    ? evidenceItems.filter((ev) => ev?.source === rule.source)
+    : evidenceItems;
+
   const hits = [];
-  for (const ev of evidenceItems) {
+  for (const ev of candidateEvidence) {
     const text = evidenceText(ev);
     const matchedKeywords = rule.keywords.filter((kw) => text.includes(kw));
     if (matchedKeywords.length > 0) {
@@ -127,6 +140,7 @@ export const _internal = {
   splitMilestoneToRules,
   normalizeExternalRules,
   normalizeKeyword,
+  normalizeRuleSource,
   MIN_KEYWORD_LENGTH
 };
 

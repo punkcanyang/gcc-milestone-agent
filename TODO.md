@@ -1,6 +1,6 @@
 # TODO - gcc-milestone-agent
 
-> 最後更新：2026-03-15
+> 最後更新：2026-03-19
 
 ## 已完成 ✅
 
@@ -25,13 +25,14 @@
 - [x] CLI `--providers` 選項
 - [x] gcc-allocation profile 新增 4 條規則
 - [x] Provider 系統測試
+- [x] YAML 規則 `source` 欄位過濾（規則只匹配特定 provider 的證據）
+- [x] GitHub Actions CI pipeline
 
 ---
 
 ## 未來規劃 📋
 
 ### Source-Filtered Rule Matching
-- [ ] YAML 規則 `source` 欄位過濾（規則只匹配特定 provider 的證據）
 - [ ] `scoreEvidence` 整合新 provider 的 bonus 分
 
 ### Semantic Reasoning v2
@@ -46,5 +47,4 @@
 ### 工程改善
 - [ ] GitHub API 分頁迭代 (follow `Link` header)
 - [ ] TypeScript 遷移或 JSDoc 類型完善
-- [ ] GitHub Actions CI pipeline
 - [ ] 發布為 npm package

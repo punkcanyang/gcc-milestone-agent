@@ -99,6 +99,7 @@ npm run demo:html
 - ✅ Unit tests (Node test runner)
 - ✅ Provider architecture (multi-source evidence collection)
 - ✅ GitHub Actions, Community, npm, URL checker providers
+- ✅ Source-filtered rule matching (`rules[].source`)
 - ⚠️ Rule matching is keyword-based; semantic reasoning is next step
 
 ## Next milestones
@@ -106,4 +107,4 @@ npm run demo:html
 1. Semantic rule reasoning with confidence scores
 2. Per-rule explainability snippets (quoted evidence text)
 3. Optional dashboard view for reviewer demo
-4. Source-filtered rule matching (rules only match evidence from specific providers)
+4. Integrate bonus scoring from non-github-api providers
