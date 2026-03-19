@@ -9,13 +9,54 @@
  * 設計說明：從 milestone-check.js 的 collectEvidence 重構而來，保持行為完全一致
  */
 import assert from 'node:assert';
-import { EVIDENCE_TYPES, PROVIDER_SOURCES, githubFetch, makeTimeFilter } from './types.js';
+import { EVIDENCE_TYPES, PROVIDER_SOURCES, githubFetchWithHeaders, makeTimeFilter } from './types.js';
 
 const GITHUB_API = 'https://api.github.com';
 
 // WHY: GitHub API 單次查詢上限，未實作分頁
 const PAGE_SIZE_DEFAULT = 100;
 const PAGE_SIZE_RELEASES = 30;
+const MAX_PAGES = 10;
+
+/**
+ * WHY: 解析 GitHub API Link header 的 next 分頁 URL
+ * @param {string|null} linkHeader
+ * @returns {string|null}
+ */
+function extractNextLink(linkHeader) {
+    if (!linkHeader) return null;
+    const parts = linkHeader.split(',');
+    for (const part of parts) {
+        const match = part.match(/<([^>]+)>\s*;\s*rel="([^"]+)"/);
+        if (match && match[2] === 'next') {
+            return match[1];
+        }
+    }
+    return null;
+}
+
+/**
+ * WHY: 按照 Link header 迭代抓取所有分頁資料
+ * @param {string} initialUrl
+ * @param {(url: string) => Promise<{ data: any, linkHeader: string|null }>} fetchPage
+ * @param {{ maxPages?: number, resourceName?: string }} [options]
+ * @returns {Promise<any[]>}
+ */
+async function fetchPaginatedArray(initialUrl, fetchPage, { maxPages = MAX_PAGES, resourceName = 'resource' } = {}) {
+    const collected = [];
+    let nextUrl = initialUrl;
+    let pageCount = 0;
+
+    while (nextUrl && pageCount < maxPages) {
+        const { data, linkHeader } = await fetchPage(nextUrl);
+        assert(Array.isArray(data), `Expected array from ${resourceName} API page, got ${typeof data}`);
+        collected.push(...data);
+        nextUrl = extractNextLink(linkHeader);
+        pageCount += 1;
+    }
+
+    return collected;
+}
 
 /**
  * GitHub API provider 定義
@@ -42,18 +83,36 @@ const githubApiProvider = {
         const sinceQuery = sinceIso ? `&since=${encodeURIComponent(sinceIso)}` : '';
         const base = `${GITHUB_API}/repos/${owner}/${name}`;
 
-        const [commitsRaw, pullsRaw, issuesRaw, releasesRaw] = await Promise.all([
-            githubFetch(`${base}/commits?per_page=${PAGE_SIZE_DEFAULT}${sinceQuery}`, token),
-            githubFetch(`${base}/pulls?state=all&sort=updated&direction=desc&per_page=${PAGE_SIZE_DEFAULT}`, token),
-            githubFetch(`${base}/issues?state=all&sort=updated&direction=desc&per_page=${PAGE_SIZE_DEFAULT}`, token),
-            githubFetch(`${base}/releases?per_page=${PAGE_SIZE_RELEASES}`, token)
-        ]);
+        const fetchPage = async (url) => {
+            const page = await githubFetchWithHeaders(url, token);
+            return {
+                data: page.data,
+                linkHeader: page.headers.get('link')
+            };
+        };
 
-        // WHY: 防禦性斷言 — GitHub API 在 repo 不存在或認證失敗時可能回傳 object 而非 array
-        assert(Array.isArray(commitsRaw), `Expected array from commits API, got ${typeof commitsRaw}`);
-        assert(Array.isArray(pullsRaw), `Expected array from pulls API, got ${typeof pullsRaw}`);
-        assert(Array.isArray(issuesRaw), `Expected array from issues API, got ${typeof issuesRaw}`);
-        assert(Array.isArray(releasesRaw), `Expected array from releases API, got ${typeof releasesRaw}`);
+        const [commitsRaw, pullsRaw, issuesRaw, releasesRaw] = await Promise.all([
+            fetchPaginatedArray(
+                `${base}/commits?per_page=${PAGE_SIZE_DEFAULT}${sinceQuery}`,
+                fetchPage,
+                { maxPages: MAX_PAGES, resourceName: 'commits' }
+            ),
+            fetchPaginatedArray(
+                `${base}/pulls?state=all&sort=updated&direction=desc&per_page=${PAGE_SIZE_DEFAULT}`,
+                fetchPage,
+                { maxPages: MAX_PAGES, resourceName: 'pulls' }
+            ),
+            fetchPaginatedArray(
+                `${base}/issues?state=all&sort=updated&direction=desc&per_page=${PAGE_SIZE_DEFAULT}`,
+                fetchPage,
+                { maxPages: MAX_PAGES, resourceName: 'issues' }
+            ),
+            fetchPaginatedArray(
+                `${base}/releases?per_page=${PAGE_SIZE_RELEASES}`,
+                fetchPage,
+                { maxPages: MAX_PAGES, resourceName: 'releases' }
+            )
+        ]);
 
         const inWindow = makeTimeFilter(sinceIso);
 
@@ -117,13 +176,20 @@ const githubApiProvider = {
             links,
             metadata: {
                 pageSizeDefault: PAGE_SIZE_DEFAULT,
-                pageSizeReleases: PAGE_SIZE_RELEASES
+                pageSizeReleases: PAGE_SIZE_RELEASES,
+                maxPages: MAX_PAGES
             }
         };
     }
 };
 
 export default githubApiProvider;
+
+export const _internal = {
+    extractNextLink,
+    fetchPaginatedArray,
+    MAX_PAGES
+};
 
 /**
  * [For Future AI]

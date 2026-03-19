@@ -96,3 +96,25 @@ test('evaluateMilestoneRules does not match when source filter excludes all evid
   assert.equal(evalResult.passed, 0);
   assert.equal(evalResult.rules[0].result.matched, false);
 });
+
+test('evaluateMilestoneRules includes explainability snippets for matched evidence', () => {
+  const evalResult = evaluateMilestoneRules(
+    'submission template',
+    [
+      {
+        title: 'Add submission template',
+        body: 'This PR adds the submission template and workflow docs for reviewers.',
+        url: 'https://example.com/explain',
+        source: 'github-api'
+      }
+    ]
+  );
+
+  const explainability = evalResult.rules[0].result.explainability;
+  assert.ok(Array.isArray(explainability));
+  assert.equal(explainability.length, 1);
+  assert.equal(explainability[0].url, 'https://example.com/explain');
+  assert.equal(explainability[0].source, 'github-api');
+  assert.ok(explainability[0].snippet.toLowerCase().includes('submission template'));
+  assert.ok(explainability[0].matchedKeywords.includes('submission'));
+});

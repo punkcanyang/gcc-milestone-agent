@@ -100,11 +100,14 @@ npm run demo:html
 - ✅ Provider architecture (multi-source evidence collection)
 - ✅ GitHub Actions, Community, npm, URL checker providers
 - ✅ Source-filtered rule matching (`rules[].source`)
+- ✅ GitHub API pagination (follow `Link` header, capped by max pages)
+- ✅ Provider bonus scoring (CI/community/npm/URL signals)
+- ✅ Per-rule explainability snippets (quoted evidence text)
+- ✅ Interactive HTML report filters (by semantic verdict/source)
+- ✅ Reviewer dashboard view (KPI + verdict distribution)
 - ⚠️ Rule matching is keyword-based; semantic reasoning is next step
 
 ## Next milestones
 
 1. Semantic rule reasoning with confidence scores
-2. Per-rule explainability snippets (quoted evidence text)
-3. Optional dashboard view for reviewer demo
-4. Integrate bonus scoring from non-github-api providers
+2. LLM-based semantic rule judgment (optional)

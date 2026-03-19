@@ -1,5 +1,96 @@
 # WORKLOG - gcc-milestone-agent
 
+## 2026-03-19 Reviewer Dashboard View
+
+### 概要
+HTML 報告新增 Reviewer Dashboard 區塊，提供分數 KPI 與規則結論分布的可視化摘要。
+
+### 變更清單
+- `src/html-report.js`
+  - 新增 `renderDashboard`、`meterRow` 等 dashboard 渲染輔助函數
+  - 新增 `Reviewer Dashboard` 區塊（`id="dashboardSection"`）
+  - 顯示 Overall/Activity/Rule Pass/Provider Bonus 利用率與規則 verdict 分布
+- `test/html-report.test.js`
+  - 新增 dashboard 區塊存在性測試
+- `README.md`, `TODO.md`
+  - 同步標記 dashboard 功能完成
+
+### 驗證
+- `npm test`：56 passed, 0 failed
+
+---
+
+## 2026-03-19 Interactive HTML Filters
+
+### 概要
+在 HTML 報告中新增可交互篩選器，支援按規則語義結論與來源過濾 Rule cards。
+
+### 變更清單
+- `src/html-report.js`
+  - 新增 `ruleVerdictFilter`、`ruleSourceFilter`
+  - 新增 `applyRuleFilters()` 前端腳本
+  - 規則卡片新增 `data-semantic` 與 `data-source` 標記
+- `test/html-report.test.js`
+  - 新增 interactive filter controls 測試
+- `README.md`, `TODO.md`
+  - 同步標記 Interactive HTML filters 已完成
+
+### 驗證
+- `npm test`：55 passed, 0 failed
+
+---
+
+## 2026-03-19 Rule Explainability Snippets
+
+### 概要
+完成每條規則的可解釋性片段輸出，支援在 Markdown/HTML/JSON 報告中引用命中證據的原文片段。
+
+### 變更清單
+- `src/rule-engine.js`
+  - 新增 `buildExplainabilitySnippet`
+  - `matchRule` 增加 `result.explainability[]`（`source/url/matchedKeywords/snippet`）
+- `src/milestone-check.js`
+  - Markdown `Rule Evaluation` 新增 explainability 區塊
+- `src/html-report.js`
+  - 每條規則卡片新增 Explainability 片段展示
+- `test/rule-engine.test.js`
+  - 新增 explainability 單測
+- `README.md`, `TODO.md`
+  - 同步已完成項與里程碑列表
+
+### 驗證
+- `npm test`：54 passed, 0 failed
+
+---
+
+## 2026-03-19 GitHub API 分頁 + Provider Bonus 評分
+
+### 概要
+完成兩個 roadmap 項目：GitHub API 分頁抓取（追蹤 `Link` header）與多資料源 bonus 評分整合。
+
+### 變更清單
+- `src/providers/types.js`
+  - 新增 `githubFetchWithHeaders`，可同時取得 JSON 與 response headers
+- `src/providers/github-api.js`
+  - 新增 `extractNextLink`、`fetchPaginatedArray`
+  - commits/pulls/issues/releases 改為分頁抓取（最多 `MAX_PAGES = 10`）
+  - 匯出 `_internal` 供分頁邏輯單測
+- `src/milestone-check.js`
+  - 新增 `calculateProviderBonus`
+  - `scoreEvidence` 新增 `providerBonus`，輸出 `baseScore`、`providerBonus`
+  - Markdown/JSON 報告加入 bonus 與分項明細
+- `test/github-api-pagination.test.js`
+  - 新增 Link header 解析與分頁迭代單測（4 cases）
+- `test/milestone-check.test.js`
+  - 新增 provider bonus 計算與總分封頂測試
+- `README.md`, `TODO.md`
+  - 同步已完成項與下一步里程碑
+
+### 驗證
+- `npm test`：53 passed, 0 failed
+
+---
+
 ## 2026-03-19 Source Filter + 版本文檔對齊
 
 ### 概要

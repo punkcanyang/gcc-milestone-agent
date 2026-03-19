@@ -101,6 +101,19 @@ test('renderHtmlReport handles undefined evidenceCounts', () => {
     assert.ok(html.includes('Evidence Counts'), 'should not crash on undefined counts');
 });
 
+test('renderHtmlReport includes interactive rule filter controls', () => {
+    const html = renderHtmlReport(makePayload());
+    assert.ok(html.includes('id="ruleVerdictFilter"'), 'should render verdict filter');
+    assert.ok(html.includes('id="ruleSourceFilter"'), 'should render source filter');
+    assert.ok(html.includes('function applyRuleFilters()'), 'should include filter script');
+});
+
+test('renderHtmlReport includes reviewer dashboard section', () => {
+    const html = renderHtmlReport(makePayload());
+    assert.ok(html.includes('Reviewer Dashboard'), 'should include dashboard title');
+    assert.ok(html.includes('id="dashboardSection"'), 'should include dashboard section id');
+});
+
 /**
  * [For Future AI]
  * 1. 關鍵假設：

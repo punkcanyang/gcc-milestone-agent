@@ -17,6 +17,9 @@ import { evaluateSemanticVerdict } from './semantic-evaluator.js';
 // WHY: 統一最小關鍵字長度，避免 milestone 自動解析與外部規則行為不一致
 // 設為 2 以支援短縮寫如 "PR"、"CI" 等常見技術用語
 const MIN_KEYWORD_LENGTH = 2;
+const EXPLAIN_SNIPPET_MAX = 180;
+const EXPLAIN_CONTEXT_BEFORE = 40;
+const EXPLAIN_CONTEXT_AFTER = 120;
 
 function normalizeKeyword(word) {
   return word
@@ -87,9 +90,29 @@ function evidenceText(item) {
   return `${item.title || ''} ${item.body || ''}`.toLowerCase();
 }
 
+function buildExplainabilitySnippet(item, matchedKeywords) {
+  const normalized = `${item.title || ''} ${item.body || ''}`.replace(/\s+/g, ' ').trim();
+  if (!normalized) return '';
+
+  const normalizedLower = normalized.toLowerCase();
+  const anchor = matchedKeywords.find((kw) => normalizedLower.includes(kw));
+  if (!anchor) {
+    return normalized.length > EXPLAIN_SNIPPET_MAX
+      ? `${normalized.slice(0, EXPLAIN_SNIPPET_MAX)}...`
+      : normalized;
+  }
+
+  const anchorIdx = normalizedLower.indexOf(anchor);
+  const start = Math.max(0, anchorIdx - EXPLAIN_CONTEXT_BEFORE);
+  const end = Math.min(normalized.length, anchorIdx + anchor.length + EXPLAIN_CONTEXT_AFTER);
+  const prefix = start > 0 ? '...' : '';
+  const suffix = end < normalized.length ? '...' : '';
+  return `${prefix}${normalized.slice(start, end).trim()}${suffix}`;
+}
+
 function matchRule(rule, evidenceItems) {
   if (!rule.keywords.length) {
-    return { matched: false, hitCount: 0, sampleLinks: [] };
+    return { matched: false, hitCount: 0, sampleLinks: [], explainability: [] };
   }
 
   // WHY: 若規則指定 source，僅在該 provider 的證據中匹配
@@ -102,15 +125,27 @@ function matchRule(rule, evidenceItems) {
     const text = evidenceText(ev);
     const matchedKeywords = rule.keywords.filter((kw) => text.includes(kw));
     if (matchedKeywords.length > 0) {
-      hits.push({ url: ev.url, matchedKeywords });
+      hits.push({
+        url: ev.url,
+        source: ev.source || null,
+        matchedKeywords,
+        snippet: buildExplainabilitySnippet(ev, matchedKeywords)
+      });
     }
   }
 
-  const sampleLinks = hits.slice(0, 3);
+  const sampleLinks = hits.slice(0, 3).map((h) => ({ url: h.url, matchedKeywords: h.matchedKeywords }));
+  const explainability = hits.slice(0, 3).map((h) => ({
+    url: h.url,
+    source: h.source,
+    matchedKeywords: h.matchedKeywords,
+    snippet: h.snippet
+  }));
   return {
     matched: hits.length > 0,
     hitCount: hits.length,
     sampleLinks,
+    explainability,
     semantic: evaluateSemanticVerdict(rule, hits)
   };
 }
@@ -141,6 +176,7 @@ export const _internal = {
   normalizeExternalRules,
   normalizeKeyword,
   normalizeRuleSource,
+  buildExplainabilitySnippet,
   MIN_KEYWORD_LENGTH
 };
 

@@ -38,6 +38,15 @@ const RULE_WEIGHT = 0.4;
 const THRESHOLD_MET = 70;
 const THRESHOLD_PARTIAL = 40;
 
+// WHY: provider bonus 上限與分項配比
+//   - 總 bonus 最多 +20 分，避免壓過 activity/rule 主分
+//   - CI/Community 權重較高（各最多 8/6），npm/URL 為輔助信號（各最多 3）
+const MAX_PROVIDER_BONUS = 20;
+const BONUS_CI_MAX = 8;
+const BONUS_COMMUNITY_MAX = 6;
+const BONUS_NPM = 3;
+const BONUS_URL_MAX = 3;
+
 // WHY: GitHub API 單次查詢上限常數，用於報告中的截斷警告
 const GITHUB_PAGE_SIZE_DEFAULT = 100;
 const GITHUB_PAGE_SIZE_RELEASES = 30;
@@ -59,7 +68,51 @@ function parseRepo(repo) {
   return { owner, name };
 }
 
-function scoreEvidence({ commits, pulls, issues, releases, rulePassRate }) {
+function calculateProviderBonus(providerMeta = {}) {
+  const breakdown = {
+    ci: 0,
+    community: 0,
+    npm: 0,
+    url: 0
+  };
+
+  const ciMeta = providerMeta[PROVIDER_SOURCES.GITHUB_ACTIONS];
+  if (ciMeta?.totalRuns > 0 && Number.isFinite(ciMeta.successRate)) {
+    const clampedRate = Math.max(0, Math.min(100, ciMeta.successRate));
+    breakdown.ci = Math.round((clampedRate / 100) * BONUS_CI_MAX);
+  }
+
+  const communityMeta = providerMeta[PROVIDER_SOURCES.GITHUB_COMMUNITY];
+  if (communityMeta && typeof communityMeta === 'object') {
+    const stars = Number(communityMeta.stars || 0);
+    const forks = Number(communityMeta.forks || 0);
+    const contributors = Number(communityMeta.contributorCount || 0);
+    const starScore = Math.min(2, Math.floor(stars / 25));
+    const forkScore = Math.min(2, Math.floor(forks / 10));
+    const contributorScore = Math.min(2, Math.floor(contributors / 5));
+    breakdown.community = Math.min(BONUS_COMMUNITY_MAX, starScore + forkScore + contributorScore);
+  }
+
+  const npmMeta = providerMeta[PROVIDER_SOURCES.NPM_REGISTRY];
+  if (npmMeta?.published === true) {
+    breakdown.npm = BONUS_NPM;
+  }
+
+  const urlMeta = providerMeta[PROVIDER_SOURCES.URL_CHECKER];
+  if (urlMeta?.totalChecked > 0 && Number.isFinite(urlMeta.reachableRate)) {
+    const clampedRate = Math.max(0, Math.min(100, urlMeta.reachableRate));
+    breakdown.url = Math.round((clampedRate / 100) * BONUS_URL_MAX);
+  }
+
+  const totalBonus = Math.min(
+    MAX_PROVIDER_BONUS,
+    breakdown.ci + breakdown.community + breakdown.npm + breakdown.url
+  );
+
+  return { totalBonus, breakdown };
+}
+
+function scoreEvidence({ commits, pulls, issues, releases, rulePassRate, providerBonus = 0 }) {
   // WHY: 加權求和反映不同證據類型對 milestone 的貢獻差異
   const activityRaw =
     commits * WEIGHT_COMMITS +
@@ -67,13 +120,15 @@ function scoreEvidence({ commits, pulls, issues, releases, rulePassRate }) {
     issues * WEIGHT_ISSUES +
     releases * WEIGHT_RELEASES;
   const activityScore = Math.min(100, activityRaw);
-  const score = Math.round(activityScore * ACTIVITY_WEIGHT + rulePassRate * RULE_WEIGHT);
+  const baseScore = Math.round(activityScore * ACTIVITY_WEIGHT + rulePassRate * RULE_WEIGHT);
+  const normalizedProviderBonus = Math.max(0, Number(providerBonus) || 0);
+  const score = Math.min(100, Math.round(baseScore + normalizedProviderBonus));
 
   let status = 'not_met';
   if (score >= THRESHOLD_MET) status = 'met';
   else if (score >= THRESHOLD_PARTIAL) status = 'partially_met';
 
-  return { score, status, activityScore };
+  return { score, status, activityScore, baseScore, providerBonus: normalizedProviderBonus };
 }
 
 /**
@@ -103,15 +158,34 @@ function buildRuleSection(ruleEval) {
     const samples = r.result.sampleLinks.length
       ? r.result.sampleLinks.map((s) => `  - ${s.url} (matched: ${s.matchedKeywords.join(', ')})`).join('\n')
       : '  - (no matching evidence)';
+    const explainability = r.result.explainability?.length
+      ? r.result.explainability.map((x) => `  - [${x.source || 'unknown'}] "${x.snippet}" (${x.url})`).join('\n')
+      : '  - (no explainability snippets)';
     const sem = r.result.semantic;
     const semanticLine = sem
       ? `  - semantic: ${sem.verdict}, confidence=${sem.confidence}, coverage=${sem.keywordCoverage}%\n  - rationale: ${sem.rationale}`
       : '  - semantic: n/a';
-    return `- ${icon} ${r.id}: ${r.text}${sourceTag}\n${samples}\n${semanticLine}`;
+    return `- ${icon} ${r.id}: ${r.text}${sourceTag}\n${samples}\n${explainability}\n${semanticLine}`;
   }).join('\n')}\n`;
 }
 
-function buildReport({ repo, milestone, since, profile, providers, score, status, activityScore, counts, links, ruleEval, providerErrors }) {
+function buildReport({
+  repo,
+  milestone,
+  since,
+  profile,
+  providers,
+  score,
+  status,
+  activityScore,
+  baseScore,
+  providerBonus,
+  providerBonusBreakdown,
+  counts,
+  links,
+  ruleEval,
+  providerErrors
+}) {
   // WHY: 當任一類型的證據達到 API 查詢上限時，提醒審閱者數據可能被截斷
   const truncationWarnings = [];
   if (counts.commits >= GITHUB_PAGE_SIZE_DEFAULT) {
@@ -144,6 +218,8 @@ function buildReport({ repo, milestone, since, profile, providers, score, status
     `- Result: **${status}**\n` +
     `- Score: **${score}/100**\n` +
     `- Activity Score: ${activityScore}/100\n` +
+    `- Base Score (activity + rules): ${baseScore}/100\n` +
+    `- Provider Bonus: +${providerBonus} (ci:${providerBonusBreakdown.ci}, community:${providerBonusBreakdown.community}, npm:${providerBonusBreakdown.npm}, url:${providerBonusBreakdown.url})\n` +
     `- Rule Pass Rate: ${ruleEval.passRate}% (${ruleEval.passed}/${ruleEval.total})\n\n` +
     `## Evidence Summary\n` +
     `- Commits counted: ${counts.commits}\n` +
@@ -163,7 +239,23 @@ function buildReport({ repo, milestone, since, profile, providers, score, status
     `- Keep human final approval (human-in-the-loop) before any fund allocation decision.\n`;
 }
 
-function buildJsonReport({ repo, milestone, sinceIso, profile, providers, score, status, activityScore, counts, ruleEval, links, providerErrors }) {
+function buildJsonReport({
+  repo,
+  milestone,
+  sinceIso,
+  profile,
+  providers,
+  score,
+  status,
+  activityScore,
+  baseScore,
+  providerBonus,
+  providerBonusBreakdown,
+  counts,
+  ruleEval,
+  links,
+  providerErrors
+}) {
   return {
     generatedAt: new Date().toISOString(),
     repo,
@@ -174,6 +266,9 @@ function buildJsonReport({ repo, milestone, sinceIso, profile, providers, score,
     status,
     score,
     activityScore,
+    baseScore,
+    providerBonus,
+    providerBonusBreakdown,
     rulePassRate: ruleEval.passRate,
     ruleStats: { passed: ruleEval.passed, total: ruleEval.total },
     evidenceCounts: counts,
@@ -218,7 +313,12 @@ export async function runMilestoneCheck({ repo, milestone, since, out, jsonOut, 
   const effectiveRulesFile = rulesFile || profileRulesFile;
   const rules = effectiveRulesFile ? await loadRulesFromFile(effectiveRulesFile) : null;
   const ruleEval = evaluateMilestoneRules(milestone, evidence.items, rules);
-  const { score, status, activityScore } = scoreEvidence({ ...counts, rulePassRate: ruleEval.passRate });
+  const bonusInfo = calculateProviderBonus(evidence.providerMeta);
+  const { score, status, activityScore, baseScore, providerBonus } = scoreEvidence({
+    ...counts,
+    rulePassRate: ruleEval.passRate,
+    providerBonus: bonusInfo.totalBonus
+  });
 
   const report = buildReport({
     repo,
@@ -229,6 +329,9 @@ export async function runMilestoneCheck({ repo, milestone, since, out, jsonOut, 
     score,
     status,
     activityScore,
+    baseScore,
+    providerBonus,
+    providerBonusBreakdown: bonusInfo.breakdown,
     counts,
     links,
     ruleEval,
@@ -247,6 +350,9 @@ export async function runMilestoneCheck({ repo, milestone, since, out, jsonOut, 
     score,
     status,
     activityScore,
+    baseScore,
+    providerBonus,
+    providerBonusBreakdown: bonusInfo.breakdown,
     counts,
     ruleEval,
     links,
@@ -276,6 +382,7 @@ export async function runMilestoneCheck({ repo, milestone, since, out, jsonOut, 
 
 export const _internal = {
   scoreEvidence,
+  calculateProviderBonus,
   normalizeDate,
   parseRepo,
   parseProviders

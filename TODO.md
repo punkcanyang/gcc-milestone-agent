@@ -27,24 +27,22 @@
 - [x] Provider 系統測試
 - [x] YAML 規則 `source` 欄位過濾（規則只匹配特定 provider 的證據）
 - [x] GitHub Actions CI pipeline
+- [x] `scoreEvidence` 整合新 provider 的 bonus 分
+- [x] GitHub API 分頁迭代 (follow `Link` header)
+- [x] Per-rule explainability snippets (引用證據原文)
+- [x] Interactive HTML report with filters
+- [x] Optional dashboard view for reviewer demo
 
 ---
 
 ## 未來規劃 📋
 
-### Source-Filtered Rule Matching
-- [ ] `scoreEvidence` 整合新 provider 的 bonus 分
-
 ### Semantic Reasoning v2
 - [ ] Semantic rule reasoning with confidence scores (替換純 keyword 方式)
-- [ ] Per-rule explainability snippets (引用證據原文)
 - [ ] LLM-based 語義判定 (可選)
 
 ### Dashboard
-- [ ] Optional dashboard view for reviewer demo
-- [ ] Interactive HTML report with filters
 
 ### 工程改善
-- [ ] GitHub API 分頁迭代 (follow `Link` header)
 - [ ] TypeScript 遷移或 JSDoc 類型完善
 - [ ] 發布為 npm package

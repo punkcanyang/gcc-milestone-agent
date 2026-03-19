@@ -38,7 +38,70 @@ function listLinks(links = []) {
   return `<ul>${links.map((url) => `<li><a href="${esc(url)}" target="_blank" rel="noreferrer">${esc(url)}</a></li>`).join('')}</ul>`;
 }
 
+function listExplainability(items = []) {
+  if (!items.length) return '<p style="opacity:.7;">(none)</p>';
+  return `<ul>${items.map((item) => `
+    <li>
+      <div><strong>${esc(item.source || 'unknown')}</strong></div>
+      <div>${esc(item.snippet || '')}</div>
+      <div><a href="${esc(item.url || '')}" target="_blank" rel="noreferrer">${esc(item.url || '')}</a></div>
+    </li>
+  `).join('')}</ul>`;
+}
+
+function clampPercent(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return 0;
+  return Math.max(0, Math.min(100, Math.round(num)));
+}
+
+function meterRow(label, value, color) {
+  const pct = clampPercent(value);
+  return `
+    <div style="margin:8px 0;">
+      <div style="display:flex;justify-content:space-between;font-size:13px;">
+        <span>${esc(label)}</span>
+        <span>${esc(pct)}%</span>
+      </div>
+      <div class="meter"><span style="width:${esc(pct)}%;background:${esc(color)}"></span></div>
+    </div>
+  `;
+}
+
+function renderDashboard(payload) {
+  const rules = payload.rules || [];
+  const verdictCounts = { met: 0, partially_met: 0, not_met: 0 };
+  for (const r of rules) {
+    const verdict = r?.result?.semantic?.verdict;
+    if (verdict in verdictCounts) verdictCounts[verdict] += 1;
+  }
+  const totalRules = rules.length || 1;
+  const metRate = Math.round((verdictCounts.met / totalRules) * 100);
+  const partialRate = Math.round((verdictCounts.partially_met / totalRules) * 100);
+  const notMetRate = Math.round((verdictCounts.not_met / totalRules) * 100);
+  const bonusPct = Math.round((Number(payload.providerBonus || 0) / 20) * 100);
+
+  return `
+    <div class="card" id="dashboardSection">
+      ${meterRow('Overall Score', payload.score, '#2563eb')}
+      ${meterRow('Activity Score', payload.activityScore, '#0ea5e9')}
+      ${meterRow('Rule Pass Rate', payload.rulePassRate, '#16a34a')}
+      ${meterRow('Provider Bonus Utilization', bonusPct, '#d97706')}
+      <hr style="border:none;border-top:1px solid #e5e7eb;margin:12px 0;" />
+      ${meterRow('Rules: met', metRate, '#16a34a')}
+      ${meterRow('Rules: partially_met', partialRate, '#d97706')}
+      ${meterRow('Rules: not_met', notMetRate, '#dc2626')}
+    </div>
+  `;
+}
+
 export function renderHtmlReport(payload) {
+  const rules = payload.rules || [];
+  const availableSources = [...new Set(rules.map((r) => r.source).filter(Boolean))];
+  const sourceOptions = availableSources
+    .map((source) => `<option value="${esc(source)}">${esc(source)}</option>`)
+    .join('');
+
   const scoreColor = payload.score >= SCORE_THRESHOLD_GREEN
     ? COLOR_MET
     : payload.score >= SCORE_THRESHOLD_YELLOW
@@ -56,6 +119,8 @@ export function renderHtmlReport(payload) {
     .card{border:1px solid #e5e7eb;border-radius:12px;padding:14px 16px;margin:10px 0;background:#fff}
     .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
     .badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#f3f4f6;font-size:12px}
+    .meter{height:8px;background:#e5e7eb;border-radius:999px;overflow:hidden}
+    .meter span{display:block;height:100%}
     code{background:#f3f4f6;padding:2px 6px;border-radius:6px}
   </style>
 </head>
@@ -75,6 +140,9 @@ export function renderHtmlReport(payload) {
     <div class="card"><div class="badge">Rule pass</div><h3>${esc(payload.rulePassRate)}%</h3></div>
   </div>
 
+  ${sectionTitle('Reviewer Dashboard')}
+  ${renderDashboard(payload)}
+
   ${sectionTitle('Evidence Counts')}
   <div class="card">
     <ul>
@@ -86,12 +154,28 @@ export function renderHtmlReport(payload) {
   </div>
 
   ${sectionTitle('Rule Evaluation')}
-  ${(payload.rules || []).map((r) => `
-    <div class="card">
+  <div class="card">
+    <label for="ruleVerdictFilter"><strong>Semantic verdict:</strong></label>
+    <select id="ruleVerdictFilter" onchange="applyRuleFilters()">
+      <option value="all">all</option>
+      <option value="met">met</option>
+      <option value="partially_met">partially_met</option>
+      <option value="not_met">not_met</option>
+    </select>
+    <label for="ruleSourceFilter" style="margin-left:12px;"><strong>Source:</strong></label>
+    <select id="ruleSourceFilter" onchange="applyRuleFilters()">
+      <option value="all">all</option>
+      ${sourceOptions}
+    </select>
+  </div>
+  ${rules.map((r) => `
+    <div class="card rule-card" data-semantic="${esc(r.result?.semantic?.verdict || 'n/a')}" data-source="${esc(r.source || '')}">
       <div><strong>${esc(r.id)}</strong> - ${esc(r.text)}</div>
       <div>Keyword matched: <code>${esc(r.result?.matched ? 'yes' : 'no')}</code></div>
       <div>Semantic: <code>${esc(r.result?.semantic?.verdict || 'n/a')}</code> / confidence <code>${esc(r.result?.semantic?.confidence ?? 'n/a')}</code></div>
       <div>${esc(r.result?.semantic?.rationale || '')}</div>
+      <div><strong>Explainability</strong></div>
+      ${listExplainability((r.result?.explainability || []).slice(0, 3))}
       ${listLinks((r.result?.semantic?.citedUrls || r.result?.sampleLinks?.map((x) => x.url) || []).slice(0, 3))}
     </div>
   `).join('')}
@@ -101,6 +185,21 @@ export function renderHtmlReport(payload) {
   <div class="card"><h3>PRs</h3>${listLinks(payload.evidenceLinks?.pulls || [])}</div>
   <div class="card"><h3>Issues</h3>${listLinks(payload.evidenceLinks?.issues || [])}</div>
   <div class="card"><h3>Releases</h3>${listLinks(payload.evidenceLinks?.releases || [])}</div>
+  <script>
+    function applyRuleFilters() {
+      const verdict = document.getElementById('ruleVerdictFilter')?.value || 'all';
+      const source = document.getElementById('ruleSourceFilter')?.value || 'all';
+      const cards = document.querySelectorAll('.rule-card');
+      cards.forEach((card) => {
+        const cardVerdict = card.dataset.semantic || '';
+        const cardSource = card.dataset.source || '';
+        const verdictMatch = verdict === 'all' || cardVerdict === verdict;
+        const sourceMatch = source === 'all' || cardSource === source;
+        card.style.display = verdictMatch && sourceMatch ? '' : 'none';
+      });
+    }
+    applyRuleFilters();
+  </script>
 </body>
 </html>`;
 }

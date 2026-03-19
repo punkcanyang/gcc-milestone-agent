@@ -122,6 +122,46 @@ export async function githubFetch(url, token, retries = 2) {
 }
 
 /**
+ * WHY: 需要讀取 GitHub API response headers（例如 Link 分頁頭）
+ * 這個函數返回 JSON 與 headers，供分頁 provider 使用
+ *
+ * @param {string} url - GitHub API URL
+ * @param {string|null} token - GitHub PAT（可選）
+ * @param {number} [retries] - 最大重試次數
+ * @returns {Promise<{ data: any, headers: Headers }>}
+ */
+export async function githubFetchWithHeaders(url, token, retries = 2) {
+    const headers = {
+        Accept: 'application/vnd.github+json',
+        'User-Agent': 'gcc-milestone-agent'
+    };
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    for (let attempt = 0; attempt <= retries; attempt += 1) {
+        try {
+            const res = await fetch(url, { headers });
+            if (res.ok) {
+                const data = await res.json();
+                return { data, headers: res.headers };
+            }
+
+            const body = await res.text();
+            const retriable = res.status >= 500 || res.status === 429;
+            if (!retriable || attempt === retries) {
+                throw new Error(`HTTP ${res.status} ${res.statusText}: ${body.slice(0, 300)}`);
+            }
+            const retryAfter = Number(res.headers.get('retry-after') || '0');
+            await sleep((retryAfter || (1 + attempt)) * 1000);
+        } catch (error) {
+            if (attempt === retries) throw error;
+            await sleep((attempt + 1) * 1000);
+        }
+    }
+
+    throw new Error('Unexpected githubFetchWithHeaders flow');
+}
+
+/**
  * WHY: 時間窗口過濾器，多個 provider 需要過濾 since 日期之後的資料
  *
  * @param {string|null} sinceIso - ISO 日期字串
