@@ -32,17 +32,17 @@
 - [x] Per-rule explainability snippets (引用證據原文)
 - [x] Interactive HTML report with filters
 - [x] Optional dashboard view for reviewer demo
+- [x] Semantic rule reasoning with confidence scores (替換純 keyword 方式)
+- [x] LLM-based 語義判定 (可選)
+- [x] TypeScript 遷移或 JSDoc 類型完善
 
 ---
 
 ## 未來規劃 📋
 
 ### Semantic Reasoning v2
-- [ ] Semantic rule reasoning with confidence scores (替換純 keyword 方式)
-- [ ] LLM-based 語義判定 (可選)
 
 ### Dashboard
 
 ### 工程改善
-- [ ] TypeScript 遷移或 JSDoc 類型完善
 - [ ] 發布為 npm package

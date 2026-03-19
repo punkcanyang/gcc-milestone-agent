@@ -1,5 +1,103 @@
 # WORKLOG - gcc-milestone-agent
 
+## 2026-03-19 npm Publish Readiness
+
+### 概要
+完成 npm 發布前置整理（package metadata、files 白名單、pack/publish scripts），並通過 dry-run 打包驗證。
+
+### 變更清單
+- `package.json`
+  - 新增 `description`、`license`、`engines`、`files`
+  - 新增 `pack:check` 與 `publish:public` scripts
+  - 移除 `private: true` 以允許發布流程
+- `README.md`
+  - 補充 `pack:check` 與 npm publish 指引
+- 驗證指令
+  - `NPM_CONFIG_CACHE=/tmp/gcc-milestone-agent-npm-cache npm run pack:check` 成功
+
+### 狀態
+- 已完成「可發布打包準備」
+- 尚未執行正式 `npm publish`（需 npm 帳號授權與最終包名可用性確認）
+
+---
+
+## 2026-03-19 JSDoc Typing Enhancement
+
+### 概要
+完成工程改善路線中的 JSDoc 類型完善，為語義評估與 LLM 模組補齊結構化類型註解。
+
+### 變更清單
+- `src/semantic-evaluator.js`
+  - 新增 `RuleLike`、`SemanticHit`、`SemanticVerdict` typedef
+  - 為核心函數補齊 `@param/@returns` 註解
+- `src/llm-semantic.js`
+  - 新增 `LlmSemanticRequest`、`LlmSemanticVerdict`、`LlmEvaluationResult` typedef
+  - 為 LLM 調用/覆寫流程函數補齊型別註解
+- `src/milestone-check.js`
+  - 新增 `SemanticMode` typedef 與 `normalizeSemanticMode` 型別標注
+- `README.md`, `TODO.md`
+  - 同步標記 JSDoc 類型完善已完成
+
+### 驗證
+- `npm test`：64 passed, 0 failed
+
+---
+
+## 2026-03-19 Optional LLM Semantic Mode
+
+### 概要
+新增可選 LLM 語義判定模式（`--semantic-mode llm`），在可用時覆寫 heuristic semantic verdict，失敗時自動 fallback。
+
+### 變更清單
+- `src/llm-semantic.js`
+  - 新增 OpenAI Responses API 調用封裝
+  - 新增 `requestLlmSemanticVerdict`、`applyLlmSemanticEvaluation`
+  - 支援缺少 API key/解析失敗時警告並回退 heuristic
+- `src/milestone-check.js`
+  - 新增 `normalizeSemanticMode`
+  - `runMilestoneCheck` 支援 `semanticMode/llmModel`
+  - 報告新增 `Semantic Mode` 與 `Semantic Warnings`
+- `src/cli.js`
+  - 新增 `--semantic-mode` 與 `--llm-model` CLI 參數
+- `test/llm-semantic.test.js`
+  - 新增 LLM 模組單測（解析/回退/覆寫）
+- `test/milestone-check.test.js`
+  - 新增 semantic-mode 正規化測試
+- `README.md`, `TODO.md`
+  - 同步標記 LLM-based semantic（optional）已完成
+
+### 驗證
+- `npm test`：64 passed, 0 failed
+
+---
+
+## 2026-03-19 Semantic Reasoning v2
+
+### 概要
+將語義評估從純 keyword 覆蓋升級為 v2 heuristic：加入 evidence snippet 語義覆蓋率與來源多樣性信號，並更新報告展示。
+
+### 變更清單
+- `src/semantic-evaluator.js`
+  - 新增 token-based `textCoverage` 與 `semanticCoverage`
+  - 置信度新增 `sourceDiversity` 加權信號
+  - 單條高語義覆蓋證據可判定為 `met`
+  - 回傳欄位新增 `semanticCoverage`、`sourceDiversity`
+- `test/semantic-evaluator.test.js`
+  - 新增 snippet 語義覆蓋測試
+  - 新增來源多樣性影響置信度測試
+  - 調整舊測試斷言到 v2 文案
+- `src/milestone-check.js`
+  - Markdown 規則輸出補充 semanticCoverage/keywordCoverage/sourceDiversity
+- `src/html-report.js`
+  - 規則卡片補充 semanticCoverage/keywordCoverage/sourceDiversity 顯示
+- `README.md`, `TODO.md`
+  - 同步標記 Semantic reasoning v2 已完成
+
+### 驗證
+- `npm test`：58 passed, 0 failed
+
+---
+
 ## 2026-03-19 Reviewer Dashboard View
 
 ### 概要

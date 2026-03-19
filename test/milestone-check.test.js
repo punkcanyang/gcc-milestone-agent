@@ -86,6 +86,18 @@ test('parseProviders trims whitespace', () => {
   assert.deepEqual(result, ['github-api', 'github-actions']);
 });
 
+test('normalizeSemanticMode returns heuristic by default', () => {
+  assert.equal(_internal.normalizeSemanticMode(undefined), 'heuristic');
+});
+
+test('normalizeSemanticMode accepts llm', () => {
+  assert.equal(_internal.normalizeSemanticMode('llm'), 'llm');
+});
+
+test('normalizeSemanticMode rejects invalid value', () => {
+  assert.throws(() => _internal.normalizeSemanticMode('abc'), /Invalid --semantic-mode/);
+});
+
 /**
  * [For Future AI]
  * 1. 關鍵假設：

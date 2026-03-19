@@ -173,6 +173,7 @@ export function renderHtmlReport(payload) {
       <div><strong>${esc(r.id)}</strong> - ${esc(r.text)}</div>
       <div>Keyword matched: <code>${esc(r.result?.matched ? 'yes' : 'no')}</code></div>
       <div>Semantic: <code>${esc(r.result?.semantic?.verdict || 'n/a')}</code> / confidence <code>${esc(r.result?.semantic?.confidence ?? 'n/a')}</code></div>
+      <div>Coverage: semantic <code>${esc(r.result?.semantic?.semanticCoverage ?? 'n/a')}%</code> / keyword <code>${esc(r.result?.semantic?.keywordCoverage ?? 'n/a')}%</code> / source diversity <code>${esc(r.result?.semantic?.sourceDiversity ?? 'n/a')}</code></div>
       <div>${esc(r.result?.semantic?.rationale || '')}</div>
       <div><strong>Explainability</strong></div>
       ${listExplainability((r.result?.explainability || []).slice(0, 3))}

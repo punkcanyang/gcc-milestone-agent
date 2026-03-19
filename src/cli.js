@@ -26,6 +26,8 @@ program
   .option('--rules-file <path>', 'Optional YAML rules file path')
   .option('--profile <name>', 'Built-in profile name (e.g. gcc-allocation)')
   .option('--providers <list>', 'Comma-separated list of evidence providers (default: github-api)')
+  .option('--semantic-mode <mode>', 'Semantic mode: heuristic | llm (default: heuristic)', 'heuristic')
+  .option('--llm-model <name>', 'OpenAI model when --semantic-mode llm is used (default: gpt-5-mini)')
   .action(async (options) => {
     const result = await runMilestoneCheck(options);
     console.log(result.summary);

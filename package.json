@@ -1,8 +1,20 @@
 {
   "name": "gcc-milestone-agent",
   "version": "0.3.0",
-  "private": true,
+  "description": "CLI agent for GCC milestone verification using multi-source evidence and rule evaluation",
+  "license": "MIT",
   "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "src",
+    "profiles",
+    "templates",
+    "README.md",
+    "README.zh-CN.quick.md",
+    "README.zh-CN.full.md"
+  ],
   "bin": {
     "milestone-agent": "./src/cli.js"
   },
@@ -10,6 +22,8 @@
     "start": "node src/cli.js",
     "dev": "node --watch src/cli.js",
     "test": "node --test",
+    "pack:check": "npm pack --dry-run",
+    "publish:public": "npm publish --access public",
     "demo": "node src/cli.js --repo gcc-foundation/gcc-openclaw-grants --milestone \"submission template, issue discussion, open source workflow\" --since 2026-03-01 --out ./demo-report.md --json-out ./demo-report.json",
     "demo:gcc": "node src/cli.js --repo gcc-foundation/gcc-openclaw-grants --milestone \"GCC allocation verification\" --profile gcc-allocation --since 2026-03-01 --out ./demo-gcc-report.md --json-out ./demo-gcc-report.json",
     "demo:html": "node src/cli.js --repo gcc-foundation/gcc-openclaw-grants --milestone \"GCC allocation verification\" --profile gcc-allocation --since 2026-03-01 --out ./demo-gcc-report.md --json-out ./demo-gcc-report.json --html-out ./demo-gcc-report.html"

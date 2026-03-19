@@ -46,6 +46,16 @@ node src/cli.js \
   --since 2026-03-01 \
   --out ./demo-full-report.md \
   --json-out ./demo-full-report.json
+
+# Optional LLM semantic mode
+OPENAI_API_KEY=your_openai_key node src/cli.js \
+  --repo gcc-foundation/gcc-openclaw-grants \
+  --milestone "GCC allocation verification" \
+  --profile gcc-allocation \
+  --semantic-mode llm \
+  --llm-model gpt-5-mini \
+  --since 2026-03-01 \
+  --out ./demo-llm-report.md
 ```
 
 ## CLI options
@@ -59,6 +69,8 @@ node src/cli.js \
 - `--rules-file <path>` optional YAML rules file
 - `--profile <name>` built-in rule profile (`gcc-allocation`)
 - `--providers <list>` comma-separated evidence providers (default: `github-api`)
+- `--semantic-mode <mode>` semantic mode (`heuristic` or `llm`, default `heuristic`)
+- `--llm-model <name>` OpenAI model used when `--semantic-mode llm` is set (default `gpt-5-mini`)
 
 ## Available providers
 
@@ -78,12 +90,15 @@ Optional (recommended for higher GitHub API rate limits):
 export GITHUB_TOKEN=your_github_pat
 # or
 export GH_TOKEN=your_github_pat
+# optional (for --semantic-mode llm)
+export OPENAI_API_KEY=your_openai_key
 ```
 
 ## Quality checks
 
 ```bash
 npm test
+npm run pack:check
 npm run demo
 npm run demo:gcc
 npm run demo:html
@@ -105,9 +120,24 @@ npm run demo:html
 - ✅ Per-rule explainability snippets (quoted evidence text)
 - ✅ Interactive HTML report filters (by semantic verdict/source)
 - ✅ Reviewer dashboard view (KPI + verdict distribution)
-- ⚠️ Rule matching is keyword-based; semantic reasoning is next step
+- ✅ Semantic reasoning v2 (semanticCoverage + sourceDiversity confidence signal)
+- ✅ Optional LLM semantic judgment mode (`--semantic-mode llm`)
+- ✅ JSDoc typing enhancement for core semantic modules
+- ⚠️ LLM mode is assistive and still requires human final review
 
 ## Next milestones
 
-1. Semantic rule reasoning with confidence scores
-2. LLM-based semantic rule judgment (optional)
+1. Publish as npm package (requires npm auth and final package name check)
+
+## npm publish
+
+```bash
+# verify package contents
+npm run pack:check
+
+# login once
+npm login
+
+# publish
+npm run publish:public
+```

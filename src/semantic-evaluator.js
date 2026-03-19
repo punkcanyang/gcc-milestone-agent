@@ -16,51 +16,152 @@ const THRESHOLD_HIT_MET = 2;
 const THRESHOLD_COVERAGE_MET = 60;
 const THRESHOLD_HIT_PARTIAL = 1;
 const THRESHOLD_COVERAGE_PARTIAL = 30;
+const THRESHOLD_SEMANTIC_STRONG_SINGLE = 70;
 
 // WHY: 置信度公式的上限和權重
 // 上限 95% 是因為純 keyword 方式無法達到 100% 確定性
 // 覆蓋率佔 70% 權重，命中數佔 30%（每次命中 +6 分，最多計算 5 次）
 const CONFIDENCE_CAP = 95;
-const COVERAGE_WEIGHT = 0.7;
+const COVERAGE_WEIGHT = 0.6;
 const HIT_SCORE_PER_COUNT = 6;
 const MAX_HIT_COUNT_FOR_SCORE = 5;
+const SOURCE_DIVERSITY_MAX_SCORE = 8;
+const KEYWORD_COVERAGE_WEIGHT = 0.4;
+const TEXT_COVERAGE_WEIGHT = 0.6;
+const MIN_TOKEN_LENGTH = 3;
+
+const STOP_WORDS = new Set([
+  'the', 'and', 'for', 'with', 'from', 'that', 'this', 'have', 'has', 'are',
+  'was', 'were', 'will', 'can', 'not', 'all', 'any', 'its', 'our', 'your',
+  'into', 'onto', 'via', 'per', 'new', 'add', 'adds', 'added'
+]);
+
+/**
+ * @typedef {Object} RuleLike
+ * @property {string} [text]
+ * @property {string[]} [keywords]
+ */
+
+/**
+ * @typedef {Object} SemanticHit
+ * @property {string} [url]
+ * @property {string} [source]
+ * @property {string[]} [matchedKeywords]
+ * @property {string} [snippet]
+ */
+
+/**
+ * @typedef {Object} SemanticVerdict
+ * @property {'met'|'partially_met'|'not_met'} verdict
+ * @property {number} confidence
+ * @property {string} rationale
+ * @property {string[]} citedUrls
+ * @property {number} keywordCoverage
+ * @property {number} semanticCoverage
+ * @property {number} sourceDiversity
+ */
 
 function uniq(arr) {
   return [...new Set(arr)];
 }
 
+/**
+ * @param {string[]} ruleKeywords
+ * @param {string[]} matchedKeywords
+ * @returns {number}
+ */
 function coverage(ruleKeywords, matchedKeywords) {
   if (!ruleKeywords.length) return 0;
   return Math.round((uniq(matchedKeywords).length / ruleKeywords.length) * 100);
 }
 
+/**
+ * @param {string} text
+ * @returns {string[]}
+ */
+function tokenize(text) {
+  return uniq(
+    String(text || '')
+      .toLowerCase()
+      .match(/[\p{L}\p{N}_-]+/gu) || []
+  ).filter((token) => token.length >= MIN_TOKEN_LENGTH && !STOP_WORDS.has(token));
+}
+
+/**
+ * @param {RuleLike} rule
+ * @param {SemanticHit[]} hits
+ * @returns {number}
+ */
+function textCoverage(rule, hits) {
+  const ruleTokens = tokenize(
+    [rule.text || '', ...(rule.keywords || [])].join(' ')
+  );
+  if (!ruleTokens.length) return 0;
+
+  const evidenceTokens = tokenize(
+    hits.map((h) => [h.snippet || '', h.matchedKeywords?.join(' ') || ''].join(' ')).join(' ')
+  );
+  if (!evidenceTokens.length) return 0;
+
+  const evidenceSet = new Set(evidenceTokens);
+  const matched = ruleTokens.filter((token) => evidenceSet.has(token));
+  return Math.round((matched.length / ruleTokens.length) * 100);
+}
+
+/**
+ * @param {RuleLike} rule
+ * @param {SemanticHit[]} hits
+ * @returns {SemanticVerdict}
+ */
 export function evaluateSemanticVerdict(rule, hits) {
   const flatMatched = hits.flatMap((h) => h.matchedKeywords || []);
   const keywordCoverage = coverage(rule.keywords || [], flatMatched);
+  const textSemanticCoverage = textCoverage(rule, hits);
+  const semanticCoverage = Math.round(
+    keywordCoverage * KEYWORD_COVERAGE_WEIGHT + textSemanticCoverage * TEXT_COVERAGE_WEIGHT
+  );
   const hitCount = hits.length;
+  const sourceDiversity = uniq(hits.map((h) => h.source).filter(Boolean)).length;
 
   let verdict = 'not_met';
-  if (hitCount >= THRESHOLD_HIT_MET && keywordCoverage >= THRESHOLD_COVERAGE_MET) {
+  if (
+    (hitCount >= THRESHOLD_HIT_MET && semanticCoverage >= THRESHOLD_COVERAGE_MET) ||
+    (hitCount >= THRESHOLD_HIT_PARTIAL && semanticCoverage >= THRESHOLD_SEMANTIC_STRONG_SINGLE)
+  ) {
     verdict = 'met';
-  } else if (hitCount >= THRESHOLD_HIT_PARTIAL && keywordCoverage >= THRESHOLD_COVERAGE_PARTIAL) {
+  } else if (hitCount >= THRESHOLD_HIT_PARTIAL && semanticCoverage >= THRESHOLD_COVERAGE_PARTIAL) {
     verdict = 'partially_met';
   }
 
-  // WHY: 置信度混合覆蓋率和命中數，cap 在 95% 表示 keyword 方式的固有限制
+  const diversityScore = Math.min(sourceDiversity, 2) / 2 * SOURCE_DIVERSITY_MAX_SCORE;
+
+  // WHY: 置信度混合語義覆蓋率、命中數和來源多樣性，cap 在 95% 表示 heuristic 方式的固有限制
   const confidence = Math.min(
     CONFIDENCE_CAP,
-    Math.round(keywordCoverage * COVERAGE_WEIGHT + Math.min(hitCount, MAX_HIT_COUNT_FOR_SCORE) * HIT_SCORE_PER_COUNT)
+    Math.round(
+      semanticCoverage * COVERAGE_WEIGHT +
+      Math.min(hitCount, MAX_HIT_COUNT_FOR_SCORE) * HIT_SCORE_PER_COUNT +
+      diversityScore
+    )
   );
   const citedUrls = uniq(hits.map((h) => h.url)).slice(0, 3);
 
   let rationale = 'No sufficient evidence matched this rule.';
   if (verdict === 'met') {
-    rationale = `Multiple evidence items matched with ${keywordCoverage}% keyword coverage.`;
+    rationale = `Strong semantic evidence matched with ${semanticCoverage}% semantic coverage.`;
   } else if (verdict === 'partially_met') {
-    rationale = `Some evidence matched with ${keywordCoverage}% keyword coverage.`;
+    rationale = `Some semantic evidence matched with ${semanticCoverage}% semantic coverage.`;
   }
 
-  return { verdict, confidence, rationale, citedUrls, keywordCoverage };
+  return {
+    verdict,
+    confidence,
+    rationale,
+    citedUrls,
+    keywordCoverage,
+    semanticCoverage,
+    sourceDiversity
+  };
 }
 
 /**

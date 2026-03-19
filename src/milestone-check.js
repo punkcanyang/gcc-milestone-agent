@@ -12,6 +12,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { evaluateMilestoneRules, loadRulesFromFile } from './rule-engine.js';
+import { applyLlmSemanticEvaluation } from './llm-semantic.js';
 import { renderHtmlReport } from './html-report.js';
 import { collectFromProviders, flattenCounts, flattenLinks, getAvailableProviders } from './providers/index.js';
 import { PROVIDER_SOURCES } from './providers/types.js';
@@ -50,6 +51,13 @@ const BONUS_URL_MAX = 3;
 // WHY: GitHub API 單次查詢上限常數，用於報告中的截斷警告
 const GITHUB_PAGE_SIZE_DEFAULT = 100;
 const GITHUB_PAGE_SIZE_RELEASES = 30;
+const SEMANTIC_MODE_HEURISTIC = 'heuristic';
+const SEMANTIC_MODE_LLM = 'llm';
+const DEFAULT_LLM_MODEL = 'gpt-5-mini';
+
+/**
+ * @typedef {'heuristic'|'llm'} SemanticMode
+ */
 
 function normalizeDate(input) {
   if (!input) return null;
@@ -66,6 +74,18 @@ function parseRepo(repo) {
     throw new Error(`Invalid --repo format: ${repo}. Expected owner/name`);
   }
   return { owner, name };
+}
+
+/**
+ * @param {string|undefined|null} mode
+ * @returns {SemanticMode}
+ */
+function normalizeSemanticMode(mode) {
+  const value = String(mode || SEMANTIC_MODE_HEURISTIC).trim().toLowerCase();
+  if (value === SEMANTIC_MODE_HEURISTIC || value === SEMANTIC_MODE_LLM) {
+    return value;
+  }
+  throw new Error(`Invalid --semantic-mode: ${mode}. Expected: ${SEMANTIC_MODE_HEURISTIC} | ${SEMANTIC_MODE_LLM}`);
 }
 
 function calculateProviderBonus(providerMeta = {}) {
@@ -163,7 +183,7 @@ function buildRuleSection(ruleEval) {
       : '  - (no explainability snippets)';
     const sem = r.result.semantic;
     const semanticLine = sem
-      ? `  - semantic: ${sem.verdict}, confidence=${sem.confidence}, coverage=${sem.keywordCoverage}%\n  - rationale: ${sem.rationale}`
+      ? `  - semantic: ${sem.verdict}, confidence=${sem.confidence}, semanticCoverage=${sem.semanticCoverage}%, keywordCoverage=${sem.keywordCoverage}%, sourceDiversity=${sem.sourceDiversity}\n  - rationale: ${sem.rationale}`
       : '  - semantic: n/a';
     return `- ${icon} ${r.id}: ${r.text}${sourceTag}\n${samples}\n${explainability}\n${semanticLine}`;
   }).join('\n')}\n`;
@@ -181,6 +201,8 @@ function buildReport({
   baseScore,
   providerBonus,
   providerBonusBreakdown,
+  semanticMode,
+  semanticWarnings,
   counts,
   links,
   ruleEval,
@@ -220,6 +242,8 @@ function buildReport({
     `- Activity Score: ${activityScore}/100\n` +
     `- Base Score (activity + rules): ${baseScore}/100\n` +
     `- Provider Bonus: +${providerBonus} (ci:${providerBonusBreakdown.ci}, community:${providerBonusBreakdown.community}, npm:${providerBonusBreakdown.npm}, url:${providerBonusBreakdown.url})\n` +
+    `- Semantic Mode: ${semanticMode}\n` +
+    `${semanticWarnings?.length ? `- Semantic Warnings: ${semanticWarnings.join(' | ')}\n` : ''}` +
     `- Rule Pass Rate: ${ruleEval.passRate}% (${ruleEval.passed}/${ruleEval.total})\n\n` +
     `## Evidence Summary\n` +
     `- Commits counted: ${counts.commits}\n` +
@@ -235,7 +259,7 @@ function buildReport({
     `### Releases\n${listOrNone(links.releases)}` +
     `\n## Rule Evaluation\n${buildRuleSection(ruleEval)}\n` +
     `## Risk Notes\n` +
-    `- Rule engine currently uses keyword heuristics and should be reviewed by humans.\n` +
+    `- Semantic evaluation defaults to heuristic mode; optional LLM mode should still be human-reviewed.\n` +
     `- Keep human final approval (human-in-the-loop) before any fund allocation decision.\n`;
 }
 
@@ -251,6 +275,8 @@ function buildJsonReport({
   baseScore,
   providerBonus,
   providerBonusBreakdown,
+  semanticMode,
+  semanticWarnings,
   counts,
   ruleEval,
   links,
@@ -269,6 +295,8 @@ function buildJsonReport({
     baseScore,
     providerBonus,
     providerBonusBreakdown,
+    semanticMode,
+    semanticWarnings: semanticWarnings || [],
     rulePassRate: ruleEval.passRate,
     ruleStats: { passed: ruleEval.passed, total: ruleEval.total },
     evidenceCounts: counts,
@@ -293,10 +321,24 @@ function resolveProfileRulesFile(profile) {
   return found;
 }
 
-export async function runMilestoneCheck({ repo, milestone, since, out, jsonOut, htmlOut, rulesFile, profile, providers: providersArg }) {
+export async function runMilestoneCheck({
+  repo,
+  milestone,
+  since,
+  out,
+  jsonOut,
+  htmlOut,
+  rulesFile,
+  profile,
+  providers: providersArg,
+  semanticMode: semanticModeArg,
+  llmModel
+}) {
   const sinceIso = normalizeDate(since);
   const { owner, name } = parseRepo(repo);
   const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+  const semanticMode = normalizeSemanticMode(semanticModeArg);
+  const semanticWarnings = [];
 
   // WHY: 解析要啟用的 providers，預設只用 github-api
   const providerNames = parseProviders(providersArg);
@@ -312,7 +354,20 @@ export async function runMilestoneCheck({ repo, milestone, since, out, jsonOut, 
   // WHY: --rules-file CLI 選項優先於 --profile 內建規則，允許用戶覆蓋預設行為
   const effectiveRulesFile = rulesFile || profileRulesFile;
   const rules = effectiveRulesFile ? await loadRulesFromFile(effectiveRulesFile) : null;
-  const ruleEval = evaluateMilestoneRules(milestone, evidence.items, rules);
+  let ruleEval = evaluateMilestoneRules(milestone, evidence.items, rules);
+
+  let effectiveSemanticMode = SEMANTIC_MODE_HEURISTIC;
+  if (semanticMode === SEMANTIC_MODE_LLM) {
+    const llmResult = await applyLlmSemanticEvaluation(ruleEval, {
+      apiKey: process.env.OPENAI_API_KEY || '',
+      model: llmModel || DEFAULT_LLM_MODEL,
+      milestone
+    });
+    ruleEval = llmResult.ruleEval;
+    semanticWarnings.push(...llmResult.warnings);
+    effectiveSemanticMode = llmResult.mode;
+  }
+
   const bonusInfo = calculateProviderBonus(evidence.providerMeta);
   const { score, status, activityScore, baseScore, providerBonus } = scoreEvidence({
     ...counts,
@@ -332,6 +387,8 @@ export async function runMilestoneCheck({ repo, milestone, since, out, jsonOut, 
     baseScore,
     providerBonus,
     providerBonusBreakdown: bonusInfo.breakdown,
+    semanticMode: effectiveSemanticMode,
+    semanticWarnings,
     counts,
     links,
     ruleEval,
@@ -353,6 +410,8 @@ export async function runMilestoneCheck({ repo, milestone, since, out, jsonOut, 
     baseScore,
     providerBonus,
     providerBonusBreakdown: bonusInfo.breakdown,
+    semanticMode: effectiveSemanticMode,
+    semanticWarnings,
     counts,
     ruleEval,
     links,
@@ -385,7 +444,8 @@ export const _internal = {
   calculateProviderBonus,
   normalizeDate,
   parseRepo,
-  parseProviders
+  parseProviders,
+  normalizeSemanticMode
 };
 
 /**

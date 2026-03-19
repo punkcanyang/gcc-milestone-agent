@@ -18,7 +18,7 @@ test('semantic evaluator returns met for strong evidence', () => {
   assert.equal(out.verdict, 'met');
   assert.ok(out.confidence >= 50);
   assert.equal(out.keywordCoverage, 100);
-  assert.ok(out.rationale.includes('keyword coverage'));
+  assert.ok(out.rationale.includes('semantic coverage'));
 });
 
 test('semantic evaluator returns partially_met for partial evidence', () => {
@@ -30,7 +30,7 @@ test('semantic evaluator returns partially_met for partial evidence', () => {
   const out = evaluateSemanticVerdict(rule, hits);
   assert.equal(out.verdict, 'partially_met');
   assert.ok(out.confidence > 0);
-  assert.ok(out.rationale.includes('Some evidence'));
+  assert.ok(out.rationale.includes('Some semantic evidence'));
 });
 
 test('semantic evaluator returns not_met for no hits', () => {
@@ -85,6 +85,41 @@ test('semantic evaluator citedUrls are deduplicated and capped at 3', () => {
   assert.ok(out.citedUrls.length <= 3, 'should cap at 3 URLs');
   // WHY: 去重後不重複計算同一 URL
   assert.ok(new Set(out.citedUrls).size === out.citedUrls.length, 'should be deduplicated');
+});
+
+test('semantic evaluator computes semanticCoverage beyond matched keywords using snippets', () => {
+  const rule = {
+    text: 'submission template workflow transparency',
+    keywords: ['submission', 'template', 'workflow', 'transparency']
+  };
+  const hits = [
+    {
+      url: 'https://a',
+      source: 'github-api',
+      matchedKeywords: ['submission'],
+      snippet: 'This PR adds submission template workflow and transparency details for reviewer demo.'
+    }
+  ];
+  const out = evaluateSemanticVerdict(rule, hits);
+  assert.ok(out.semanticCoverage >= out.keywordCoverage);
+  assert.ok(out.semanticCoverage >= 70);
+  assert.equal(out.verdict, 'met');
+});
+
+test('semantic evaluator rewards source diversity in confidence', () => {
+  const rule = { text: 'ci workflow success', keywords: ['ci', 'workflow', 'success'] };
+  const sameSourceHits = [
+    { url: 'https://a', source: 'github-actions', matchedKeywords: ['ci', 'workflow'], snippet: 'ci workflow success in main' },
+    { url: 'https://b', source: 'github-actions', matchedKeywords: ['success'], snippet: 'ci workflow success in release branch' }
+  ];
+  const mixedSourceHits = [
+    { url: 'https://a', source: 'github-actions', matchedKeywords: ['ci', 'workflow'], snippet: 'ci workflow success in main' },
+    { url: 'https://b', source: 'github-api', matchedKeywords: ['success'], snippet: 'release note confirms ci workflow success' }
+  ];
+
+  const outSameSource = evaluateSemanticVerdict(rule, sameSourceHits);
+  const outMixedSource = evaluateSemanticVerdict(rule, mixedSourceHits);
+  assert.ok(outMixedSource.confidence > outSameSource.confidence);
 });
 
 /**
