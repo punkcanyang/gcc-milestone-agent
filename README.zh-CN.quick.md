@@ -18,6 +18,7 @@ npm run demo:gcc
 
 ## 核心特点
 
+- **多資料來源驗證**：支援 GitHub (代碼/社群/CI)、Etherscan (智能合約)、Discord (社群)、Twitter (Vision AI 分析)、網頁爬蟲 (Mirror/Notion) 等全方位社群指標與產出驗證。
 - 支持 GCC 预置规则：`--profile gcc-allocation`
 - 支持自定义规则：`--rules-file ./templates/rules.example.yaml`
 - 三种报告格式：Markdown / JSON / HTML

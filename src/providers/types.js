@@ -18,7 +18,11 @@ export const EVIDENCE_TYPES = {
     CI_RUN: 'ci_run',
     COMMUNITY_METRIC: 'community_metric',
     PACKAGE: 'package',
-    URL_CHECK: 'url_check'
+    URL_CHECK: 'url_check',
+    DISCUSSION: 'discussion',
+    SOCIAL_METRIC: 'social_metric',
+    SMART_CONTRACT: 'smart_contract',
+    CONTENT_ARTICLE: 'content_article'
 };
 
 // --- 合法的 provider source 列舉 ---
@@ -27,7 +31,12 @@ export const PROVIDER_SOURCES = {
     GITHUB_ACTIONS: 'github-actions',
     GITHUB_COMMUNITY: 'github-community',
     NPM_REGISTRY: 'npm-registry',
-    URL_CHECKER: 'url-checker'
+    URL_CHECKER: 'url-checker',
+    GITHUB_DISCUSSIONS: 'github-discussions',
+    TWITTER_BROWSER: 'twitter-browser',
+    ETHERSCAN_API: 'etherscan-api',
+    ARTICLE_CRAWLER: 'article-crawler',
+    DISCORD_API: 'discord-api'
 };
 
 /**

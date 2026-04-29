@@ -13,6 +13,11 @@ import githubActionsProvider from './github-actions.js';
 import githubCommunityProvider from './github-community.js';
 import npmRegistryProvider from './npm-registry.js';
 import urlCheckerProvider from './url-checker.js';
+import githubDiscussionsProvider from './github-discussions.js';
+import twitterBrowserProvider from './twitter-browser.js';
+import etherscanApiProvider from './etherscan-api.js';
+import articleCrawlerProvider from './article-crawler.js';
+import discordApiProvider from './discord-api.js';
 
 // --- 內建 provider 註冊表 ---
 // WHY: 集中管理所有 provider，新增 provider 只需在此處 import 並加入 registry
@@ -21,7 +26,12 @@ const BUILTIN_PROVIDERS = [
     githubActionsProvider,
     githubCommunityProvider,
     npmRegistryProvider,
-    urlCheckerProvider
+    urlCheckerProvider,
+    githubDiscussionsProvider,
+    twitterBrowserProvider,
+    etherscanApiProvider,
+    articleCrawlerProvider,
+    discordApiProvider
 ];
 
 const providerMap = new Map(BUILTIN_PROVIDERS.map((p) => [p.name, p]));

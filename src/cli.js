@@ -26,6 +26,11 @@ program
   .option('--rules-file <path>', 'Optional YAML rules file path')
   .option('--profile <name>', 'Built-in profile name (e.g. gcc-allocation)')
   .option('--providers <list>', 'Comma-separated list of evidence providers (default: github-api)')
+  .option('--twitter-handle <handle>', 'Twitter handle to check for social metrics')
+  .option('--contract-address <address>', 'Smart contract address to verify')
+  .option('--etherscan-url <url>', 'Etherscan-compatible API URL', 'https://api.etherscan.io/api')
+  .option('--article-urls <urls>', 'Comma-separated list of article URLs to crawl and verify')
+  .option('--discord-invite <code_or_url>', 'Discord invite code or URL to check community metrics')
   .option('--semantic-mode <mode>', 'Semantic mode: heuristic | llm (default: heuristic)', 'heuristic')
   .option('--llm-model <name>', 'OpenAI model when --semantic-mode llm is used (default: gpt-5-mini)')
   .action(async (options) => {

@@ -1,5 +1,119 @@
 # WORKLOG - gcc-milestone-agent
 
+## 2026-04-29 里程碑資料需求探討與分類矩陣
+
+### 概要
+針對「里程碑驗收的種類太多了」的問題，從宏觀角度整理所有的里程碑資料需求，並依照「重要性」、「資料公開性」以及「技術驗證方法」建立分類矩陣。
+
+### 變更清單
+- 新增 `milestone_classification.md` 討論文件
+  - 將里程碑分為四大類：開發與工程、社區與增長、內容與教育、產品與營運。
+  - 分析智能合約部署、外部網址語義驗證、社群指標擷取等潛在需求與可行性。
+  - 提出下一步發展選項供審查員討論。
+
+## 2026-04-29 Discord Community Metrics (Discord API)
+
+### 概要
+針對「選項 D：Discord 群組數據抓取」，我們實作了**免 Bot Token** 的優雅解法。透過整合 Discord 官方提供的公開 Invite API，系統只需要一個邀請代碼或網址，即可精準解析出伺服器的「總成員數」與「在線人數」。這大幅度降低了社群維護者的設定門檻，同時確保驗證過程能獲得有效的 `SOCIAL_METRIC` 證據。
+
+### 變更清單
+- **核心架構更新**
+  - 新增 `--discord-invite` CLI 參數。
+  - 註冊 `DISCORD_API` 作為全新 Provider Source。
+- **Discord Provider 實作 (`discord-api.js`)**
+  - 支援自動將完整的邀請網址 (例如 `https://discord.gg/abc`) 正規化為邀請碼 `abc`。
+  - 透過向 `https://discord.com/api/v9/invites/{code}?with_counts=true` 發送請求，安全擷取 `approximate_member_count` 與 `approximate_presence_count`。
+  - 適當處理無效或過期邀請碼的 404 情境 (Graceful fallback)。
+- **測試與文件**
+  - 新增 `test/discord-api.test.js` 測試網址解析與各類 API 回傳狀況。
+  - 所有 89 個核心測試案例通過。
+  - 建立 `walkthrough.md` 展示無痛社群驗證成果。
+
+---
+
+## 2026-04-29 Twitter Vision Integration (Community Metrics)
+
+### 概要
+針對「選項 C：社群指標抓取」，我們升級了 `twitter-browser` Provider。有鑑於 Twitter/X 強烈的反爬蟲機制與 DOM 混淆，我們整合了 **Vision AI (預設 gpt-4o-mini)**。系統會自動利用 Playwright 拍下 Twitter 使用者頁面截圖，並將圖片發送給 LLM 解析出精確的粉絲數 (Followers)，藉此大幅提升社群指標抓取的穩定度與準確性。
+
+### 變更清單
+- **LLM 視覺模組 (Vision API)**
+  - 更新 `src/llm-semantic.js`，新增 `requestLlmVisionExtraction` 函數。
+  - 支援讀取圖片檔案，轉換為 Base64，並呼叫 OpenAI `v1/chat/completions` API 的圖片解析能力。
+- **Twitter Provider 升級**
+  - 變更 `page.goto` 的等待策略（由 `networkidle` 改為 `load` 加固定等待），避免 Twitter 網頁 WebSocket 造成的超時。
+  - 擷取截圖後，若存在 `OPENAI_API_KEY`，自動調用 Vision API 提取數字。
+  - 具備 Graceful Fallback 機制，若無 Key 或 API 失敗，會退回原先的 DOM 解析模式。
+- **測試與文件**
+  - 新增 `test/twitter-browser.test.js` 測試 Vision 函數。
+  - 更新 `walkthrough.md` 展示社群指標的驗證情境。
+
+---
+
+## 2026-04-29 Article Content Semantic Verification (Article Crawler)
+
+### 概要
+針對「選項 B：文章內容語義驗證」，實作了 `article-crawler` Provider。此模組能透過 CLI 接收指定文章網址，並使用 Playwright 自動載入網頁、去除雜訊標籤，提取純文字與截圖，以供 LLM 進行深度語義分析。
+
+### 變更清單
+- **核心架構**
+  - 新增 CLI 參數 `--article-urls`。
+  - `types.js` 擴充 `CONTENT_ARTICLE` 證據類型與 `ARTICLE_CRAWLER` 來源。
+- **Provider 實作**
+  - 新增 `src/providers/article-crawler.js`。
+  - 整合 `browser-runner.js`，動態解析如 Mirror / Notion 等依賴 JS 渲染的頁面。
+  - 提取 `document.body.innerText`，去除 `script`, `style`, `nav`, `footer` 等雜訊，並設定 3000 字節流上限，避免超出 LLM Token 限制。
+  - 抓取頁面截圖，附加至 HTML 報告的 Visual Evidence 區塊。
+- **測試**
+  - 新增 `test/article-crawler.test.js` 單元測試。
+  - 執行 E2E 測試確認純文字成功提取並可與里程碑規則成功配對。
+
+---
+
+## 2026-04-29 Smart Contract Deployment Validation (Etherscan API)
+
+### 概要
+針對「選項 A：智能合約部署驗證」，實作了 `etherscan-api` Provider，允許從 EVM 兼容的區塊鏈瀏覽器中抓取智能合約的開源驗證狀態與部署者資訊。
+
+### 變更清單
+- **核心架構**
+  - 新增 CLI 參數 `--contract-address` 與 `--etherscan-url` 以支援多鏈環境（預設 Ethereum Mainnet）。
+  - `types.js` 新增 `SMART_CONTRACT` evidence type 與 `ETHERSCAN_API` provider source。
+- **Provider 實作**
+  - 新增 `src/providers/etherscan-api.js`，呼叫 Etherscan API：
+    - `getsourcecode` 驗證合約是否已開源並取得名稱、編譯器版本。
+    - `getcontractcreation` 取得部署者 (creator) 與部署交易哈希 (txHash)。
+  - 若提供 `ETHERSCAN_API_KEY` 環境變數，自動帶入以防止 Rate Limit。
+- **測試**
+  - 新增 `test/etherscan-api.test.js`，總計 77 個測試項目全數通過。
+  - 以 Tether (USDT) 智能合約進行了端對端測試，成功產出報告並正確匹配里程碑關鍵字。
+
+---
+
+## 2026-04-29 Community Growth Monitor Phase 1 & 2 (PoC)
+
+### 概要
+實作 `github-discussions` 提供者以收集社區活躍度指標，並建立 Browser Automation 基礎設施的概念驗證 (PoC)，用以應對需要截圖或反爬蟲較嚴格的平台（如 Twitter/X）。
+
+### 變更清單
+- **Phase 1: GitHub Discussions Provider**
+  - 新增 `src/providers/github-discussions.js` (透過 GraphQL API 抓取討論數、回答率、參與者)。
+  - `types.js` 擴充 `DISCUSSION` evidence type。
+  - `gcc-allocation.yaml` 新增 GCC-A10 規則 (活躍社區討論)。
+  - 新增單元測試 `test/github-discussions.test.js`。
+
+- **Phase 2: Browser Automation PoC (Playwright)**
+  - 引入 `playwright` 依賴。
+  - 新增 `src/providers/browser-runner.js` 提供 Headless Browser 管理與截圖功能。
+  - 新增 `src/providers/twitter-browser.js` 作為試點，擷取 Twitter follower 數並存檔截圖。
+  - `html-report.js` 支援渲染 provider 的截圖附件 (Visual Evidence)。
+  - CLI 新增 `--twitter-handle` 參數。
+
+### 驗證
+- `npm test`：73 passed, 0 failed
+
+---
+
 ## 2026-03-19 npm Publish Readiness
 
 ### 概要

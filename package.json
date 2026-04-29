@@ -1,6 +1,6 @@
 {
   "name": "gcc-milestone-agent",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "CLI agent for GCC milestone verification using multi-source evidence and rule evaluation",
   "license": "MIT",
   "type": "module",
@@ -30,6 +30,7 @@
   },
   "dependencies": {
     "commander": "^13.1.0",
-    "js-yaml": "^4.1.0"
+    "js-yaml": "^4.1.0",
+    "playwright": "^1.59.1"
   }
 }

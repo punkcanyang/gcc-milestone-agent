@@ -8,8 +8,12 @@
  *   3. 在 API key 缺失或請求失敗時 graceful fallback
  */
 
+import fs from 'node:fs';
+
 const OPENAI_RESPONSES_API = 'https://api.openai.com/v1/responses';
+const OPENAI_CHAT_API = 'https://api.openai.com/v1/chat/completions';
 const DEFAULT_LLM_MODEL = 'gpt-5-mini';
+const DEFAULT_VISION_MODEL = 'gpt-4o-mini';
 const VALID_VERDICTS = new Set(['met', 'partially_met', 'not_met']);
 const MAX_CONFIDENCE = 100;
 const MAX_RULES_FOR_LLM = 30;
@@ -152,6 +156,64 @@ export async function requestLlmSemanticVerdict({
     confidence: normalizeConfidence(parsed.confidence),
     rationale: String(parsed.rationale || '').trim() || 'LLM semantic reasoning applied.'
   };
+}
+
+/**
+ * 透過 Vision AI 解析圖片中的數字 (例如：Twitter 粉絲數)
+ * @param {string} apiKey 
+ * @param {string} imagePath 
+ * @param {string} [prompt]
+ * @param {typeof fetch} [fetchImpl]
+ * @returns {Promise<string>}
+ */
+export async function requestLlmVisionExtraction(apiKey, imagePath, prompt = 'Please read this Twitter profile screenshot and reply with the number of "Followers". Reply ONLY with the number (e.g. 12345). If you cannot find it, reply "unknown".', fetchImpl = fetch) {
+  if (!fs.existsSync(imagePath)) {
+    throw new Error(`Image not found: ${imagePath}`);
+  }
+
+  const base64Image = fs.readFileSync(imagePath, { encoding: 'base64' });
+  const mimeType = imagePath.endsWith('.png') ? 'image/png' : 'image/jpeg';
+  const dataUrl = `data:${mimeType};base64,${base64Image}`;
+
+  const res = await fetchImpl(OPENAI_CHAT_API, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: DEFAULT_VISION_MODEL,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            {
+              type: 'image_url',
+              image_url: { url: dataUrl }
+            }
+          ]
+        }
+      ],
+      max_tokens: 50
+    })
+  });
+
+  if (!res.ok) {
+    const body = typeof res.text === 'function' ? await res.text() : '';
+    throw new Error(`OpenAI Vision API error: HTTP ${res.status} ${body.slice(0, 240)}`);
+  }
+
+  const payload = await res.json();
+  const text = payload.choices?.[0]?.message?.content || '';
+  const result = text.trim();
+  
+  // 嘗試清洗並提取純數字
+  const match = result.replace(/,/g, '').match(/(\d+)/);
+  if (match && result.toLowerCase() !== 'unknown') {
+    return match[1];
+  }
+  return 'unknown';
 }
 
 /**

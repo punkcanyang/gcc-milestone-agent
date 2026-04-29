@@ -19,7 +19,12 @@ test('getAvailableProviders returns all registered providers', () => {
     assert.ok(providers.includes('github-community'), 'should include github-community');
     assert.ok(providers.includes('npm-registry'), 'should include npm-registry');
     assert.ok(providers.includes('url-checker'), 'should include url-checker');
-    assert.equal(providers.length, 5);
+    assert.ok(providers.includes('github-discussions'), 'should include github-discussions');
+    assert.ok(providers.includes('twitter-browser'), 'should include twitter-browser');
+    assert.ok(providers.includes('etherscan-api'), 'should include etherscan-api');
+    assert.ok(providers.includes('article-crawler'), 'should include article-crawler');
+    assert.ok(providers.includes('discord-api'), 'should include discord-api');
+    assert.equal(providers.length, 10);
 });
 
 test('getProvider returns provider by name', () => {

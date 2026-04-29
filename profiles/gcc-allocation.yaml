@@ -38,3 +38,8 @@ rules:
     text: External links in docs are reachable
     keywords: [url, link, reachable]
     source: url-checker
+
+  - id: GCC-A10
+    text: Project has active community discussions
+    keywords: [discussion, community, answered, participant, comment]
+    source: github-discussions

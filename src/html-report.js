@@ -95,6 +95,31 @@ function renderDashboard(payload) {
   `;
 }
 
+function renderAttachments(payload) {
+  const meta = payload.providerMeta || {};
+  const attachments = [];
+  for (const provider of Object.values(meta)) {
+    if (provider && Array.isArray(provider.attachments)) {
+      attachments.push(...provider.attachments);
+    }
+  }
+  if (!attachments.length) return '';
+
+  return `
+    ${sectionTitle('Visual Evidence (Screenshots)')}
+    <div class="grid">
+      ${attachments.map(att => `
+        <div class="card" style="text-align:center;">
+          <a href="${esc(att.url)}" target="_blank">
+            <img src="${esc(att.url)}" alt="Screenshot" style="max-width:100%;height:auto;border-radius:8px;border:1px solid #e5e7eb;" />
+          </a>
+          <div style="font-size:12px;color:#6b7280;margin-top:8px;">Open to view full image</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
 export function renderHtmlReport(payload) {
   const rules = payload.rules || [];
   const availableSources = [...new Set(rules.map((r) => r.source).filter(Boolean))];
@@ -186,6 +211,7 @@ export function renderHtmlReport(payload) {
   <div class="card"><h3>PRs</h3>${listLinks(payload.evidenceLinks?.pulls || [])}</div>
   <div class="card"><h3>Issues</h3>${listLinks(payload.evidenceLinks?.issues || [])}</div>
   <div class="card"><h3>Releases</h3>${listLinks(payload.evidenceLinks?.releases || [])}</div>
+  ${renderAttachments(payload)}
   <script>
     function applyRuleFilters() {
       const verdict = document.getElementById('ruleVerdictFilter')?.value || 'all';

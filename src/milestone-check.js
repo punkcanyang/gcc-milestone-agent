@@ -280,7 +280,8 @@ function buildJsonReport({
   counts,
   ruleEval,
   links,
-  providerErrors
+  providerErrors,
+  providerMeta
 }) {
   return {
     generatedAt: new Date().toISOString(),
@@ -302,7 +303,8 @@ function buildJsonReport({
     evidenceCounts: counts,
     evidenceLinks: links,
     rules: ruleEval.rules,
-    providerErrors: providerErrors || []
+    providerErrors: providerErrors || [],
+    providerMeta: providerMeta || {}
   };
 }
 
@@ -331,6 +333,11 @@ export async function runMilestoneCheck({
   rulesFile,
   profile,
   providers: providersArg,
+  twitterHandle,
+  contractAddress,
+  etherscanUrl,
+  articleUrls,
+  discordInvite,
   semanticMode: semanticModeArg,
   llmModel
 }) {
@@ -343,8 +350,21 @@ export async function runMilestoneCheck({
   // WHY: 解析要啟用的 providers，預設只用 github-api
   const providerNames = parseProviders(providersArg);
 
-  // WHY: 使用 Provider 系統收集證據，取代舊的 collectEvidence 直接調用
-  const evidence = await collectFromProviders(providerNames, { owner, name, sinceIso, token });
+  // WHY: 使用 Provider 系統收集證據，傳遞 options 給特定的 provider (如 twitterHandle)
+  const evidence = await collectFromProviders(providerNames, {
+    owner,
+    name,
+    sinceIso,
+    token,
+    options: { 
+      twitterHandle, 
+      contractAddress, 
+      etherscanUrl, 
+      etherscanApiKey: process.env.ETHERSCAN_API_KEY,
+      articleUrls: articleUrls ? articleUrls.split(',').map(u => u.trim()).filter(Boolean) : [],
+      discordInvite
+    }
+  });
 
   // WHY: flattenCounts/flattenLinks 將多 provider 結果轉為舊格式，維持向下相容
   const counts = flattenCounts(evidence.counts);
@@ -415,7 +435,8 @@ export async function runMilestoneCheck({
     counts,
     ruleEval,
     links,
-    providerErrors: evidence.errors
+    providerErrors: evidence.errors,
+    providerMeta: evidence.providerMeta
   });
 
   let jsonReportPath = null;

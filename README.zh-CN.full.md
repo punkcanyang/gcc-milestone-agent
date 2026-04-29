@@ -10,9 +10,9 @@ GCC Milestone Agent 是一个面向资助流程的里程碑验收工具。目标
 
 ## 工作流程
 
-1. 拉取 GitHub 证据（commits / PR / issues / releases）
+1. 透過多種 Provider 收集驗證資料（支援 GitHub, 智能合約, 外部網頁爬蟲, Twitter Vision AI, Discord 群組資料等）
 2. 加载规则（里程碑文本拆解 / YAML 文件 / 预置 profile）
-3. 执行规则匹配 + 语义判断
+3. 执行规则匹配 + 语义判断（支援 Heuristic 啟發式與 LLM 語義引擎）
 4. 输出报告（Markdown / JSON / HTML）
 
 ## 快速开始
@@ -45,6 +45,11 @@ node src/cli.js \
 - `--since <date>`：时间窗口过滤（可选）
 - `--profile <name>`：预置规则集（当前支持 `gcc-allocation`）
 - `--rules-file <path>`：YAML 规则文件（可选）
+- `--providers <list>`：指定要執行的資料收集提供者（預設為 `github-api`）
+- `--contract-address <address>`：要驗證的智能合約地址（配合 `etherscan-api`）
+- `--article-urls <urls>`：要爬取的文章或外部文件網址列表（配合 `article-crawler`）
+- `--discord-invite <code_or_url>`：Discord 群組邀請碼，用以驗證社群指標（配合 `discord-api`）
+- `--semantic-mode <mode>`：語義判定模式，可選 `heuristic` 或 `llm`
 - `--out <path>`：Markdown 输出路径
 - `--json-out <path>`：JSON 输出路径
 - `--html-out <path>`：HTML 输出路径

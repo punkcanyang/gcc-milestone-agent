@@ -56,6 +56,16 @@ OPENAI_API_KEY=your_openai_key node src/cli.js \
   --llm-model gpt-5-mini \
   --since 2026-03-01 \
   --out ./demo-llm-report.md
+# GCC Milestone Verification run (Multi-source Web3 Edition)
+node src/cli.js \
+  --repo SomeOrg/SomeWeb3Repo \
+  --milestone "Deploy smart contract, write documentation, reach 1000 members" \
+  --contract-address "0x1234567890abcdef" \
+  --article-urls "https://mirror.xyz/my-post" \
+  --discord-invite "discord-developers" \
+  --twitter-handle "vitalikbuterin" \
+  --providers github-api,etherscan-api,article-crawler,discord-api,twitter-browser \
+  --out ./demo-web3-report.md
 ```
 
 ## CLI options
@@ -69,6 +79,10 @@ OPENAI_API_KEY=your_openai_key node src/cli.js \
 - `--rules-file <path>` optional YAML rules file
 - `--profile <name>` built-in rule profile (`gcc-allocation`)
 - `--providers <list>` comma-separated evidence providers (default: `github-api`)
+- `--contract-address <address>` optional smart contract address to verify
+- `--etherscan-url <url>` Etherscan-compatible API URL (default: `https://api.etherscan.io/api`)
+- `--article-urls <urls>` comma-separated list of article URLs to crawl and verify
+- `--discord-invite <code_or_url>` Discord invite code or URL to check community metrics
 - `--semantic-mode <mode>` semantic mode (`heuristic` or `llm`, default `heuristic`)
 - `--llm-model <name>` OpenAI model used when `--semantic-mode llm` is set (default `gpt-5-mini`)
 
@@ -79,8 +93,13 @@ OPENAI_API_KEY=your_openai_key node src/cli.js \
 | `github-api` | Commits, PRs, issues, releases |
 | `github-actions` | CI/CD workflow runs, success rate |
 | `github-community` | Stars, forks, contributors |
+| `github-discussions` | GitHub Discussions top participants & threads |
 | `npm-registry` | npm package publish status |
 | `url-checker` | README external URL reachability |
+| `etherscan-api` | Smart contract creation date & open source status |
+| `article-crawler` | Playwright-based article full-text extraction (Mirror, Notion, etc.) |
+| `discord-api` | Discord server approximate members & online count (No Bot Token required) |
+| `twitter-browser` | Twitter profile metrics extraction via Vision AI & Playwright screenshot |
 
 ## Environment
 
@@ -90,8 +109,17 @@ Optional (recommended for higher GitHub API rate limits):
 export GITHUB_TOKEN=your_github_pat
 # or
 export GH_TOKEN=your_github_pat
-# optional (for --semantic-mode llm)
+
+# optional (for Etherscan contract verification)
+export ETHERSCAN_API_KEY=your_etherscan_key
+
+# optional (for --semantic-mode llm & twitter Vision AI extraction)
 export OPENAI_API_KEY=your_openai_key
+```
+
+Note: Browsing capabilities (Article Crawler, Twitter) require Playwright dependencies:
+```bash
+npx playwright install chromium
 ```
 
 ## Quality checks
@@ -123,6 +151,11 @@ npm run demo:html
 - ✅ Semantic reasoning v2 (semanticCoverage + sourceDiversity confidence signal)
 - ✅ Optional LLM semantic judgment mode (`--semantic-mode llm`)
 - ✅ JSDoc typing enhancement for core semantic modules
+- ✅ Etherscan API smart contract verification
+- ✅ Playwright headless browser automation
+- ✅ Multi-source semantic evaluation (Articles, Twitter screenshots)
+- ✅ Discord Invite API for seamless community metrics
+- ✅ 89 unit/integration tests passing
 - ⚠️ LLM mode is assistive and still requires human final review
 
 ## Next milestones
