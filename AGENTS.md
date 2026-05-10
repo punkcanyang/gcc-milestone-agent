@@ -24,12 +24,15 @@ No way to run a single test file with the built-in runner; use `node --test test
 
 ```
 src/cli.js  →  milestone-check.js  →  providers/index.js  →  rule-engine.js  →  html-report.js
+                    ↓
+           community-health.js  →  snapshot-store.js
 ```
 
 - **Entry**: `src/cli.js` (commander). Options are auto-camelCased (`--json-out` → `jsonOut`).
 - **Core**: `src/milestone-check.js` orchestrates evidence collection, scoring, report generation.
 - **Providers**: `src/providers/*.js`. Registry in `index.js`. Each provider exports `{ name, types, collect }`. Adding a provider: import + push to `BUILTIN_PROVIDERS` in `index.js`, add `PROVIDER_SOURCES` and `EVIDENCE_TYPES` entries in `types.js`.
 - **Providers run concurrently** — a single provider failure does not block others.
+- **Community health**: `src/community-health.js` aggregates metrics from all provider metadata into a unified view. `src/snapshot-store.js` saves/loads JSON snapshots to `.gcc-milestone/snapshots/` for trend comparison.
 - **Rule engine**: `src/rule-engine.js` parses milestone text into rules; external rules via YAML (`--rules-file` or `--profile`).
 - **Profiles**: built-in rule sets in `profiles/*.yaml` (currently `gcc-allocation` only).
 - **Scoring**: activity (weighted commits/PRs/issues/releases, 60%) + rule pass rate (40%) + provider bonus (up to +20). Thresholds: met≥70, partially_met≥40.
@@ -71,3 +74,4 @@ rules:
 - No test watch mode; re-run `npm test` manually.
 - Playwright browsers must be installed separately (`npx playwright install chromium`).
 - GitHub API pagination is capped at a max page count; truncation warnings appear in reports when limits are hit.
+- Snapshot files in `.gcc-milestone/snapshots/` are gitignored by convention (generated data).
