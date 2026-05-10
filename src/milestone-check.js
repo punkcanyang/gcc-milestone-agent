@@ -16,6 +16,8 @@ import { applyLlmSemanticEvaluation } from './llm-semantic.js';
 import { renderHtmlReport } from './html-report.js';
 import { collectFromProviders, flattenCounts, flattenLinks, getAvailableProviders } from './providers/index.js';
 import { PROVIDER_SOURCES } from './providers/types.js';
+import { buildCommunityHealth, computeTrend, formatCommunityHealthMarkdown } from './community-health.js';
+import { saveSnapshot, loadPreviousSnapshot } from './snapshot-store.js';
 
 // --- 評分權重常數 ---
 // WHY: 各類型證據對 milestone 完成度的貢獻不同
@@ -206,7 +208,8 @@ function buildReport({
   counts,
   links,
   ruleEval,
-  providerErrors
+  providerErrors,
+  communityHealthMarkdown
 }) {
   // WHY: 當任一類型的證據達到 API 查詢上限時，提醒審閱者數據可能被截斷
   const truncationWarnings = [];
@@ -258,7 +261,8 @@ function buildReport({
     `### Issues\n${listOrNone(links.issues)}` +
     `### Releases\n${listOrNone(links.releases)}` +
     `\n## Rule Evaluation\n${buildRuleSection(ruleEval)}\n` +
-    `## Risk Notes\n` +
+    communityHealthMarkdown +
+    `\n## Risk Notes\n` +
     `- Semantic evaluation defaults to heuristic mode; optional LLM mode should still be human-reviewed.\n` +
     `- Keep human final approval (human-in-the-loop) before any fund allocation decision.\n`;
 }
@@ -281,7 +285,8 @@ function buildJsonReport({
   ruleEval,
   links,
   providerErrors,
-  providerMeta
+  providerMeta,
+  communityHealth
 }) {
   return {
     generatedAt: new Date().toISOString(),
@@ -304,7 +309,8 @@ function buildJsonReport({
     evidenceLinks: links,
     rules: ruleEval.rules,
     providerErrors: providerErrors || [],
-    providerMeta: providerMeta || {}
+    providerMeta: providerMeta || {},
+    communityHealth: communityHealth || {}
   };
 }
 
@@ -397,6 +403,11 @@ export async function runMilestoneCheck({
     providerBonus: bonusInfo.totalBonus
   });
 
+  const communityHealth = buildCommunityHealth(evidence.providerMeta);
+  const previousSnapshot = await loadPreviousSnapshot(repo);
+  const communityTrend = computeTrend(communityHealth, previousSnapshot?.communityHealth);
+  const communityHealthMarkdown = formatCommunityHealthMarkdown(communityHealth, communityTrend);
+
   const report = buildReport({
     repo,
     milestone,
@@ -414,7 +425,8 @@ export async function runMilestoneCheck({
     counts,
     links,
     ruleEval,
-    providerErrors: evidence.errors
+    providerErrors: evidence.errors,
+    communityHealthMarkdown
   });
 
   const reportPath = path.resolve(process.cwd(), out);
@@ -438,7 +450,8 @@ export async function runMilestoneCheck({
     ruleEval,
     links,
     providerErrors: evidence.errors,
-    providerMeta: evidence.providerMeta
+    providerMeta: evidence.providerMeta,
+    communityHealth
   });
 
   let jsonReportPath = null;
@@ -453,6 +466,8 @@ export async function runMilestoneCheck({
     const html = renderHtmlReport(payload);
     await fs.writeFile(htmlReportPath, html, 'utf8');
   }
+
+  await saveSnapshot(repo, { score, status, communityHealth, counts });
 
   return {
     summary: `[${status}] ${repo} milestone score ${score}/100 (activity:${activityScore} rules:${ruleEval.passRate}% commits:${counts.commits} prs:${counts.pulls} issues:${counts.issues} releases:${counts.releases})`,

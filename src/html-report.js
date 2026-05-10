@@ -95,6 +95,32 @@ function renderDashboard(payload) {
   `;
 }
 
+function renderCommunityHealth(payload) {
+  const health = payload.communityHealth;
+  if (!health || (!health.github && !health.discord && !health.twitter && !health.telegram && !health.discussions)) {
+    return '';
+  }
+
+  const rows = [];
+  if (health.github) {
+    rows.push(`<div class="card"><div class="badge">GitHub</div><h3>${esc(health.github.stars)} ⭐ · ${esc(health.github.forks)} forks · ${esc(health.github.contributors)} contributors</h3></div>`);
+  }
+  if (health.discord) {
+    rows.push(`<div class="card"><div class="badge">Discord</div><h3>${esc(health.discord.memberCount)} members (${esc(health.discord.onlineCount)} online)</h3></div>`);
+  }
+  if (health.twitter) {
+    rows.push(`<div class="card"><div class="badge">Twitter</div><h3>@${esc(health.twitter.handle)} · ${esc(health.twitter.followerCount)} followers</h3></div>`);
+  }
+  if (health.telegram) {
+    rows.push(`<div class="card"><div class="badge">Telegram</div><h3>${esc(health.telegram.memberCount)} members</h3></div>`);
+  }
+  if (health.discussions) {
+    rows.push(`<div class="card"><div class="badge">Discussions</div><h3>${esc(health.discussions.totalCount)} threads · ${esc(health.discussions.answeredRate)}% answered</h3></div>`);
+  }
+
+  return rows.join('\n');
+}
+
 function renderAttachments(payload) {
   const meta = payload.providerMeta || {};
   const attachments = [];
@@ -167,6 +193,11 @@ export function renderHtmlReport(payload) {
 
   ${sectionTitle('Reviewer Dashboard')}
   ${renderDashboard(payload)}
+
+  ${sectionTitle('Community Health')}
+  <div class="grid">
+    ${renderCommunityHealth(payload)}
+  </div>
 
   ${sectionTitle('Evidence Counts')}
   <div class="card">
