@@ -1,25 +1,17 @@
 #!/usr/bin/env node
-/**
- * __ai_context__
- * 模組角色：CLI 入口點，負責解析命令行參數並調用核心邏輯
- * 系統位置：[本模組] → milestone-check.js（唯一入口）
- * 核心職責：
- *   1. 定義 CLI 選項（--repo, --milestone, --since, --out 等）
- *   2. 將解析後的選項傳遞給 runMilestoneCheck
- *   3. 輸出執行結果摘要到 stdout
- * 設計說明：使用 commander 庫處理 CLI 參數解析
- */
 import { Command } from 'commander';
 import { runMilestoneCheck } from './milestone-check.js';
 import { closeBrowser } from './providers/browser-runner.js';
+import { loadConfig, mergeOptions } from './config-loader.js';
 
 const program = new Command();
 
 program
   .name('milestone-agent')
   .description('Milestone proof collector for GCC grant workflows')
-  .requiredOption('--repo <owner/name>', 'GitHub repository, e.g. octocat/hello-world')
-  .requiredOption('--milestone <text>', 'Milestone definition text')
+  .option('--config <path>', 'Config file path (default: .gcc-milestone.yaml)')
+  .option('--repo <owner/name>', 'GitHub repository, e.g. octocat/hello-world')
+  .option('--milestone <text>', 'Milestone definition text')
   .option('--since <date>', 'Only collect evidence after ISO date')
   .option('--out <path>', 'Output markdown report path', './report.md')
   .option('--json-out <path>', 'Optional JSON report output path')
@@ -37,7 +29,19 @@ program
   .option('--llm-model <name>', 'OpenAI model when --semantic-mode llm is used (default: gpt-5-mini)')
   .action(async (options) => {
     try {
-      const result = await runMilestoneCheck(options);
+      const config = loadConfig();
+      const merged = mergeOptions(options, config);
+
+      if (!merged.repo) {
+        console.error('[milestone-agent] --repo is required (via CLI or .gcc-milestone.yaml)');
+        process.exit(1);
+      }
+      if (!merged.milestone) {
+        console.error('[milestone-agent] --milestone is required (via CLI or .gcc-milestone.yaml)');
+        process.exit(1);
+      }
+
+      const result = await runMilestoneCheck(merged);
       console.log(result.summary);
       console.log(`Report written: ${result.reportPath}`);
       if (result.jsonReportPath) {
@@ -47,7 +51,6 @@ program
         console.log(`HTML report written: ${result.htmlReportPath}`);
       }
     } finally {
-      // WHY: 確保瀏覽器實例在 CLI 退出時被關閉，防止資源洩漏
       await closeBrowser();
     }
   });
@@ -56,16 +59,3 @@ program.parseAsync(process.argv).catch((err) => {
   console.error('[milestone-agent] failed:', err.message);
   process.exit(1);
 });
-
-/**
- * [For Future AI]
- * 1. 關鍵假設：
- *    - commander 庫處理所有參數驗證（required options）
- *    - 所有業務邏輯委託給 milestone-check.js
- * 2. 潛在邊界情況：
- *    - process.exit(1) 在 catch 中調用，可能跳過 cleanup
- *    - commander 的 camelCase 選項轉換：--json-out → jsonOut, --rules-file → rulesFile
- * 3. 模組依賴：
- *    - commander（CLI 參數解析）
- *    - milestone-check.js（runMilestoneCheck）
- */

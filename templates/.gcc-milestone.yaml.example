@@ -1,0 +1,21 @@
+# .gcc-milestone.yaml — 项目级默认配置
+# CLI 参数会覆盖此文件中的值
+
+repo: owner/repo-name
+milestone: "submission template, issue discussion, open source workflow"
+since: "2026-03-01"
+profile: gcc-allocation
+providers: github-api,discord-api,twitter-browser,telegram-group
+out: ./report.md
+json-out: ./report.json
+html-out: ./report.html
+semantic-mode: heuristic
+
+# 社区数据源（可选）
+# twitter-handle: your_handle
+# discord-invite: your-discord-invite
+# telegram-group: your_tg_group
+
+# Web3 数据源（可选）
+# contract-address: "0x..."
+# article-urls: "https://mirror.xyz/post1,https://mirror.xyz/post2"
