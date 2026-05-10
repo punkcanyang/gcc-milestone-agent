@@ -36,7 +36,8 @@ export const PROVIDER_SOURCES = {
     TWITTER_BROWSER: 'twitter-browser',
     ETHERSCAN_API: 'etherscan-api',
     ARTICLE_CRAWLER: 'article-crawler',
-    DISCORD_API: 'discord-api'
+    DISCORD_API: 'discord-api',
+    TELEGRAM_GROUP: 'telegram-group'
 };
 
 /**
@@ -118,28 +119,10 @@ export async function fetchWithRetry(url, { headers = {}, retries = 2 } = {}) {
  *
  * @param {string} url - GitHub API URL
  * @param {string|null} token - GitHub PAT（可選）
- * @param {number} [retries] - 最大重試次數
- * @returns {Promise<any>}
+ * @param {{ retries?: number, returnHeaders?: boolean }} [options] - 選項
+ * @returns {Promise<any>} - 預設返回 JSON，若 returnHeaders=true 則返回 { data, headers }}
  */
-export async function githubFetch(url, token, retries = 2) {
-    const headers = {
-        Accept: 'application/vnd.github+json',
-        'User-Agent': 'gcc-milestone-agent'
-    };
-    if (token) headers.Authorization = `Bearer ${token}`;
-    return fetchWithRetry(url, { headers, retries });
-}
-
-/**
- * WHY: 需要讀取 GitHub API response headers（例如 Link 分頁頭）
- * 這個函數返回 JSON 與 headers，供分頁 provider 使用
- *
- * @param {string} url - GitHub API URL
- * @param {string|null} token - GitHub PAT（可選）
- * @param {number} [retries] - 最大重試次數
- * @returns {Promise<{ data: any, headers: Headers }>}
- */
-export async function githubFetchWithHeaders(url, token, retries = 2) {
+export async function githubFetch(url, token, { retries = 2, returnHeaders = false } = {}) {
     const headers = {
         Accept: 'application/vnd.github+json',
         'User-Agent': 'gcc-milestone-agent'
@@ -151,7 +134,7 @@ export async function githubFetchWithHeaders(url, token, retries = 2) {
             const res = await fetch(url, { headers });
             if (res.ok) {
                 const data = await res.json();
-                return { data, headers: res.headers };
+                return returnHeaders ? { data, headers: res.headers } : data;
             }
 
             const body = await res.text();
@@ -167,7 +150,20 @@ export async function githubFetchWithHeaders(url, token, retries = 2) {
         }
     }
 
-    throw new Error('Unexpected githubFetchWithHeaders flow');
+    throw new Error('Unexpected githubFetch flow');
+}
+
+/**
+ * WHY: 向下相容包裝，返回 { data, headers } 格式
+ * 用於需要讀取 response headers 的場景（如 GitHub API 分頁）
+ *
+ * @param {string} url - GitHub API URL
+ * @param {string|null} token - GitHub PAT（可選）
+ * @param {number} [retries] - 最大重試次數
+ * @returns {Promise<{ data: any, headers: Headers }>}
+ */
+export async function githubFetchWithHeaders(url, token, retries = 2) {
+    return githubFetch(url, token, { retries, returnHeaders: true });
 }
 
 /**

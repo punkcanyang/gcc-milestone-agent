@@ -24,7 +24,8 @@ test('getAvailableProviders returns all registered providers', () => {
     assert.ok(providers.includes('etherscan-api'), 'should include etherscan-api');
     assert.ok(providers.includes('article-crawler'), 'should include article-crawler');
     assert.ok(providers.includes('discord-api'), 'should include discord-api');
-    assert.equal(providers.length, 10);
+    assert.ok(providers.includes('telegram-group'), 'should include telegram-group');
+    assert.equal(providers.length, 11);
 });
 
 test('getProvider returns provider by name', () => {

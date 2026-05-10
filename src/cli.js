@@ -11,6 +11,7 @@
  */
 import { Command } from 'commander';
 import { runMilestoneCheck } from './milestone-check.js';
+import { closeBrowser } from './providers/browser-runner.js';
 
 const program = new Command();
 
@@ -31,17 +32,23 @@ program
   .option('--etherscan-url <url>', 'Etherscan-compatible API URL', 'https://api.etherscan.io/api')
   .option('--article-urls <urls>', 'Comma-separated list of article URLs to crawl and verify')
   .option('--discord-invite <code_or_url>', 'Discord invite code or URL to check community metrics')
+  .option('--telegram-group <username_or_url>', 'Telegram group username or URL to check community metrics')
   .option('--semantic-mode <mode>', 'Semantic mode: heuristic | llm (default: heuristic)', 'heuristic')
   .option('--llm-model <name>', 'OpenAI model when --semantic-mode llm is used (default: gpt-5-mini)')
   .action(async (options) => {
-    const result = await runMilestoneCheck(options);
-    console.log(result.summary);
-    console.log(`Report written: ${result.reportPath}`);
-    if (result.jsonReportPath) {
-      console.log(`JSON report written: ${result.jsonReportPath}`);
-    }
-    if (result.htmlReportPath) {
-      console.log(`HTML report written: ${result.htmlReportPath}`);
+    try {
+      const result = await runMilestoneCheck(options);
+      console.log(result.summary);
+      console.log(`Report written: ${result.reportPath}`);
+      if (result.jsonReportPath) {
+        console.log(`JSON report written: ${result.jsonReportPath}`);
+      }
+      if (result.htmlReportPath) {
+        console.log(`HTML report written: ${result.htmlReportPath}`);
+      }
+    } finally {
+      // WHY: 確保瀏覽器實例在 CLI 退出時被關閉，防止資源洩漏
+      await closeBrowser();
     }
   });
 

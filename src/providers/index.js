@@ -18,6 +18,7 @@ import twitterBrowserProvider from './twitter-browser.js';
 import etherscanApiProvider from './etherscan-api.js';
 import articleCrawlerProvider from './article-crawler.js';
 import discordApiProvider from './discord-api.js';
+import telegramGroupProvider from './telegram-group.js';
 
 // --- 內建 provider 註冊表 ---
 // WHY: 集中管理所有 provider，新增 provider 只需在此處 import 並加入 registry
@@ -31,7 +32,8 @@ const BUILTIN_PROVIDERS = [
     twitterBrowserProvider,
     etherscanApiProvider,
     articleCrawlerProvider,
-    discordApiProvider
+    discordApiProvider,
+    telegramGroupProvider
 ];
 
 const providerMap = new Map(BUILTIN_PROVIDERS.map((p) => [p.name, p]));

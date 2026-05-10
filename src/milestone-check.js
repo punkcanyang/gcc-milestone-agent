@@ -338,6 +338,7 @@ export async function runMilestoneCheck({
   etherscanUrl,
   articleUrls,
   discordInvite,
+  telegramGroup,
   semanticMode: semanticModeArg,
   llmModel
 }) {
@@ -362,7 +363,8 @@ export async function runMilestoneCheck({
       etherscanUrl, 
       etherscanApiKey: process.env.ETHERSCAN_API_KEY,
       articleUrls: articleUrls ? articleUrls.split(',').map(u => u.trim()).filter(Boolean) : [],
-      discordInvite
+      discordInvite,
+      telegramGroup
     }
   });
 
