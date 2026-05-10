@@ -26,9 +26,12 @@ No way to run a single test file with the built-in runner; use `node --test test
 src/cli.js  →  milestone-check.js  →  providers/index.js  →  rule-engine.js  →  html-report.js
                     ↓
            community-health.js  →  snapshot-store.js
+                    ↓
+           config-loader.js
 ```
 
 - **Entry**: `src/cli.js` (commander). Options are auto-camelCased (`--json-out` → `jsonOut`).
+- **Config**: `src/config-loader.js` reads `.gcc-milestone.yaml` from CWD. CLI options override config values. `--repo` and `--milestone` can come from either source.
 - **Core**: `src/milestone-check.js` orchestrates evidence collection, scoring, report generation.
 - **Providers**: `src/providers/*.js`. Registry in `index.js`. Each provider exports `{ name, types, collect }`. Adding a provider: import + push to `BUILTIN_PROVIDERS` in `index.js`, add `PROVIDER_SOURCES` and `EVIDENCE_TYPES` entries in `types.js`.
 - **Providers run concurrently** — a single provider failure does not block others.
