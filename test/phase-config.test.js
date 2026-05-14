@@ -80,6 +80,7 @@ test('mergePhaseOptions applies CLI > phase > top-level for execution keys', () 
     repo: 'owner/name',
     profile: 'gcc-allocation',
     providers: 'github-api',
+    since: '2026-01-01',
     reportsDir: 'reports',
     out: 'top.md',
     jsonOut: 'top.json',
@@ -91,6 +92,8 @@ test('mergePhaseOptions applies CLI > phase > top-level for execution keys', () 
     milestone: 'phase milestone',
     profile: 'phase-profile',
     repo: 'ignored/repo',
+    providers: 'github-actions',
+    since: '2026-02-01',
     reportsDir: 'ignored-reports',
     out: 'ignored.md',
     jsonOut: 'ignored.json',
@@ -110,6 +113,8 @@ test('mergePhaseOptions applies CLI > phase > top-level for execution keys', () 
   assert.equal(merged.htmlOut, 'top.html');
   assert.deepEqual(merged.milestones, [{ id: 'Top', milestone: 'top' }]);
   assert.equal(merged.profile, 'cli-profile');
+  assert.equal(merged.providers, 'github-actions');
+  assert.equal(merged.since, '2026-02-01');
   assert.equal(merged.milestone, 'cli milestone');
   assert.deepEqual(merged.phase, { id: 'M2', title: null, dependsOn: [] });
 });
@@ -118,5 +123,9 @@ test('mergePhaseOptions requires effective repo and milestone', () => {
   assert.throws(
     () => mergePhaseOptions({ topLevel: { repo: 'owner/name' }, phase: { id: 'M1' }, cli: {} }),
     /milestone is required/
+  );
+  assert.throws(
+    () => mergePhaseOptions({ topLevel: {}, phase: { id: 'M1', milestone: 'one' }, cli: {} }),
+    /repo is required/
   );
 });
