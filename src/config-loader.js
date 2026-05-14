@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import yaml from 'js-yaml';
+import { mergePhaseOptions, selectPhase, validateMilestones } from './phase-config.js';
 
 const CONFIG_FILE = '.gcc-milestone.yaml';
 
@@ -23,4 +24,22 @@ export function mergeOptions(cliOptions, config) {
     }
   }
   return merged;
+}
+
+export function resolveOptions(cliOptions, config) {
+  if (!cliOptions?.phase) {
+    return mergeOptions(cliOptions, config);
+  }
+
+  if (!Array.isArray(config?.milestones)) {
+    throw new Error('--phase requires milestones in .gcc-milestone.yaml');
+  }
+
+  const phases = validateMilestones(config.milestones);
+  const selected = selectPhase(phases, cliOptions.phase);
+  return mergePhaseOptions({
+    topLevel: config,
+    phase: selected,
+    cli: cliOptions
+  });
 }
