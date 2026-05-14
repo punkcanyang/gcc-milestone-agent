@@ -114,6 +114,26 @@ test('renderHtmlReport includes reviewer dashboard section', () => {
     assert.ok(html.includes('id="dashboardSection"'), 'should include dashboard section id');
 });
 
+test('renderHtmlReport includes phase metadata when present', () => {
+    const html = renderHtmlReport(makePayload({
+        phase: { id: 'M2', title: 'Community proof', dependsOn: ['M1'] },
+        dependencyWarnings: []
+    }));
+    assert.ok(html.includes('Phase'), 'should render phase label');
+    assert.ok(html.includes('M2'), 'should render phase id');
+    assert.ok(html.includes('Community proof'), 'should render phase title');
+    assert.ok(html.includes('M1'), 'should render dependency');
+});
+
+test('renderHtmlReport includes dependency warnings when present', () => {
+    const html = renderHtmlReport(makePayload({
+        phase: { id: 'M2', title: 'Community proof', dependsOn: ['M1'] },
+        dependencyWarnings: ['Phase M2 depends on M1, but no prior result was found in reportsDir.']
+    }));
+    assert.ok(html.includes('Dependency Warnings'), 'should render warnings title');
+    assert.ok(html.includes('no prior result'), 'should render warning text');
+});
+
 /**
  * [For Future AI]
  * 1. 關鍵假設：

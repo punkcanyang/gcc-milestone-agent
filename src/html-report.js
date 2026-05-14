@@ -146,6 +146,25 @@ function renderAttachments(payload) {
   `;
 }
 
+function renderPhaseInfo(payload) {
+  const phase = payload.phase;
+  if (!phase) return '';
+  const dependsOn = Array.isArray(phase.dependsOn) && phase.dependsOn.length
+    ? phase.dependsOn.join(', ')
+    : '(none)';
+  const warnings = payload.dependencyWarnings || [];
+  return `
+    <div class="card">
+      <div><strong>Phase:</strong> ${esc(phase.id)}${phase.title ? ` (${esc(phase.title)})` : ''}</div>
+      <div><strong>Depends on:</strong> ${esc(dependsOn)}</div>
+    </div>
+    ${warnings.length ? `
+      ${sectionTitle('Dependency Warnings')}
+      <div class="card"><ul>${warnings.map((warning) => `<li>${esc(warning)}</li>`).join('')}</ul></div>
+    ` : ''}
+  `;
+}
+
 export function renderHtmlReport(payload) {
   const rules = payload.rules || [];
   const availableSources = [...new Set(rules.map((r) => r.source).filter(Boolean))];
@@ -183,6 +202,7 @@ export function renderHtmlReport(payload) {
     <div><strong>Profile:</strong> ${esc(payload.profile || 'none')}</div>
     <div><strong>Generated:</strong> ${esc(payload.generatedAt)}</div>
   </div>
+  ${renderPhaseInfo(payload)}
 
   <div class="grid">
     <div class="card"><div class="badge">Status</div><h3>${esc(payload.status)}</h3></div>
