@@ -132,6 +132,10 @@ export function mergePhaseOptions({ topLevel, phase, cli }) {
   mergeNonEmpty(merged, phase, PHASE_OVERRIDABLE_KEYS);
   mergeNonEmpty(merged, cli);
 
+  if (!merged.reportsDir) {
+    merged.reportsDir = 'reports';
+  }
+
   merged.phase = {
     id: phase.id,
     title: phase.title || null,

@@ -2,7 +2,8 @@
 import { Command } from 'commander';
 import { runMilestoneCheck } from './milestone-check.js';
 import { closeBrowser } from './providers/browser-runner.js';
-import { loadConfig, mergeOptions } from './config-loader.js';
+import { loadConfig, resolveOptions } from './config-loader.js';
+import { detectDependencyWarnings, resolvePhaseOutputPaths } from './phase-reports.js';
 
 const program = new Command();
 
@@ -12,10 +13,12 @@ program
   .option('--config <path>', 'Config file path (default: .gcc-milestone.yaml)')
   .option('--repo <owner/name>', 'GitHub repository, e.g. octocat/hello-world')
   .option('--milestone <text>', 'Milestone definition text')
+  .option('--phase <id>', 'Milestone phase id from .gcc-milestone.yaml')
   .option('--since <date>', 'Only collect evidence after ISO date')
-  .option('--out <path>', 'Output markdown report path', './report.md')
+  .option('--out <path>', 'Output markdown report path')
   .option('--json-out <path>', 'Optional JSON report output path')
   .option('--html-out <path>', 'Optional HTML report output path')
+  .option('--reports-dir <path>', 'Directory for phase reports and dependency lookup')
   .option('--rules-file <path>', 'Optional YAML rules file path')
   .option('--profile <name>', 'Built-in profile name (e.g. gcc-allocation)')
   .option('--providers <list>', 'Comma-separated list of evidence providers (default: github-api)')
@@ -30,7 +33,33 @@ program
   .action(async (options) => {
     try {
       const config = loadConfig();
-      const merged = mergeOptions(options, config);
+      let merged = resolveOptions(options, config);
+
+      if (merged.phase) {
+        const outputPaths = resolvePhaseOutputPaths({
+          repo: merged.repo,
+          phaseId: merged.phase.id,
+          reportsDir: merged.reportsDir,
+          out: merged.out,
+          jsonOut: merged.jsonOut,
+          htmlOut: merged.htmlOut
+        });
+        const dependencyWarnings = await detectDependencyWarnings({
+          reportsDir: outputPaths.reportsDir,
+          repo: merged.repo,
+          phase: merged.phase
+        });
+        merged = {
+          ...merged,
+          ...outputPaths,
+          dependencyWarnings
+        };
+      } else {
+        merged = {
+          ...merged,
+          out: merged.out || './report.md'
+        };
+      }
 
       if (!merged.repo) {
         console.error('[milestone-agent] --repo is required (via CLI or .gcc-milestone.yaml)');

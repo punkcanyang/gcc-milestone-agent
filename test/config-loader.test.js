@@ -82,6 +82,14 @@ test('resolveOptions selects phase when --phase is provided', () => {
   assert.deepEqual(resolved.phase, { id: 'M2', title: null, dependsOn: ['M1'] });
 });
 
+test('resolveOptions defaults reportsDir in phase mode', () => {
+  const resolved = resolveOptions(
+    { phase: 'M1' },
+    { repo: 'owner/name', milestones: [{ id: 'M1', milestone: 'one' }] }
+  );
+  assert.equal(resolved.reportsDir, 'reports');
+});
+
 test('resolveOptions requires milestones when --phase is provided', () => {
   assert.throws(
     () => resolveOptions({ phase: 'M1' }, { repo: 'owner/name' }),
