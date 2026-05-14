@@ -5,8 +5,10 @@ import { mergePhaseOptions, selectPhase, validateMilestones } from './phase-conf
 
 const CONFIG_FILE = '.gcc-milestone.yaml';
 
-export function loadConfig(cwd = process.cwd()) {
-  const filePath = path.join(cwd, CONFIG_FILE);
+export function loadConfig(cwd = process.cwd(), configPath = CONFIG_FILE) {
+  const filePath = path.isAbsolute(configPath)
+    ? configPath
+    : path.join(cwd, configPath);
   if (!fs.existsSync(filePath)) return {};
 
   const raw = fs.readFileSync(filePath, 'utf8');

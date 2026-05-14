@@ -72,6 +72,7 @@ node src/cli.js \
 
 - `--repo <owner/name>` required
 - `--milestone <text>` required
+- `--config <path>` optional YAML config path (default `.gcc-milestone.yaml`)
 - `--phase <id>` optional milestone phase id from `.gcc-milestone.yaml`
 - `--since <ISO date>` optional
 - `--out <path>` markdown report path (default `./report.md`)

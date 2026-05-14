@@ -32,7 +32,7 @@ program
   .option('--llm-model <name>', 'OpenAI model when --semantic-mode llm is used (default: gpt-5-mini)')
   .action(async (options) => {
     try {
-      const config = loadConfig();
+      const config = loadConfig(process.cwd(), options.config);
       let merged = resolveOptions(options, config);
 
       if (merged.phase) {

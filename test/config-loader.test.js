@@ -26,6 +26,25 @@ test('loadConfig reads YAML config', () => {
   fs.rmSync(dir, { recursive: true });
 });
 
+test('loadConfig reads explicit config path', () => {
+  const dir = tmpDir();
+  fs.writeFileSync(path.join(dir, 'phase.yaml'), `repo: owner/name\nmilestones:\n  - id: M1\n    milestone: one\n`);
+  const config = loadConfig(dir, 'phase.yaml');
+  assert.equal(config.repo, 'owner/name');
+  assert.equal(config.milestones[0].id, 'M1');
+  fs.rmSync(dir, { recursive: true });
+});
+
+test('loadConfig reads explicit absolute config path', () => {
+  const dir = tmpDir();
+  const filePath = path.join(dir, 'phase.yaml');
+  fs.writeFileSync(filePath, `repo: owner/name\nmilestone: test\n`);
+  const config = loadConfig(dir, filePath);
+  assert.equal(config.repo, 'owner/name');
+  assert.equal(config.milestone, 'test');
+  fs.rmSync(dir, { recursive: true });
+});
+
 test('loadConfig handles invalid YAML', () => {
   const dir = tmpDir();
   fs.writeFileSync(path.join(dir, '.gcc-milestone.yaml'), `{{{invalid`);

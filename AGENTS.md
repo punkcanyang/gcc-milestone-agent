@@ -31,7 +31,7 @@ src/cli.js  →  milestone-check.js  →  providers/index.js  →  rule-engine.j
 ```
 
 - **Entry**: `src/cli.js` (commander). Options are auto-camelCased (`--json-out` → `jsonOut`).
-- **Config**: `src/config-loader.js` reads `.gcc-milestone.yaml` from CWD. CLI options override config values. `--repo` and `--milestone` can come from either source.
+- **Config**: `src/config-loader.js` reads `.gcc-milestone.yaml` from CWD by default, or `--config <path>` when provided. CLI options override config values. `--repo` and `--milestone` can come from either source.
 - **Phase mode**: opt-in via `--phase <id>`. `.gcc-milestone.yaml` may define `milestones`; phase config can override execution keys, but `repo` and output-routing keys are top-level/CLI-only.
 - **Core**: `src/milestone-check.js` orchestrates evidence collection, scoring, report generation.
 - **Providers**: `src/providers/*.js`. Registry in `index.js`. Each provider exports `{ name, types, collect }`. Adding a provider: import + push to `BUILTIN_PROVIDERS` in `index.js`, add `PROVIDER_SOURCES` and `EVIDENCE_TYPES` entries in `types.js`.
