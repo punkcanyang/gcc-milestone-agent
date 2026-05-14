@@ -2,6 +2,15 @@
 
 MVP+ CLI for GCC hackathon submission: verify grant milestone progress using GitHub evidence + rule checks, then output markdown/JSON/HTML reports.
 
+## Sponsor
+
+This project is sponsored by [GCC](https://www.gccofficial.org/) (Global Chinese Community of Universal Digital Commons).
+
+GCC is a Chinese-speaking public goods funding community that supports digital commons, open-source software, privacy and security, decentralized governance, and other future-facing public goods projects. Its goal is to connect Chinese-speaking communities with the global public goods ecosystem and make digital commons funding more sustainable.
+
+- Website: [gccofficial.org](https://www.gccofficial.org/)
+- X/Twitter: [@GCCofCommons](https://x.com/GCCofCommons)
+
 中文说明：
 - 简明版：`README.zh-CN.quick.md`
 - 详细版：`README.zh-CN.full.md`
@@ -215,3 +224,7 @@ npm login
 # publish
 npm run publish:public
 ```
+
+## License
+
+MIT. See [LICENSE](./LICENSE).
