@@ -51,7 +51,7 @@ milestones:
     dependsOn: [M1, M2]
 ```
 
-Phase ids use a slug rule: non-empty ASCII letters, numbers, underscores, and hyphens only. `M1` through `M9` are expected to be common, but the format does not require a fixed `M<number>` pattern.
+Phase ids use a slug rule: non-empty ASCII letters, numbers, underscores, and hyphens only. `M1` through `M9` are expected to be common, but the format does not require a fixed `M<number>` pattern. Duplicate phase ids are invalid.
 
 `dependsOn` accepts either a string or an array. It is normalized internally to an array.
 
@@ -65,7 +65,11 @@ When `--phase <id>` is used, effective options are merged in this order:
 2. selected phase object
 3. CLI options
 
-CLI values always win. Phase values can override top-level defaults. Top-level `repo` remains the normal source for the repository unless overridden from the CLI.
+CLI values always win. Phase values can override top-level defaults for execution inputs such as `milestone`, `profile`, `providers`, `since`, `rulesFile`, and provider-specific options.
+
+Phase values must not override global identity or output-routing keys. `repo`, `reportsDir`, `out`, `jsonOut`, `htmlOut`, and `milestones` are top-level or CLI-only. This keeps all phases in one config tied to the same repository and report history unless the user explicitly overrides the repository from the CLI.
+
+If `--phase M2 --milestone "..."` is used, the CLI `--milestone` value overrides the selected phase's `milestone` text. This follows the existing CLI override rule and is useful for one-off verification. The report still records `phase.id = "M2"`.
 
 Without `--phase`, the existing merge behavior remains unchanged.
 
@@ -85,6 +89,8 @@ If `--phase` is present:
 - `.gcc-milestone.yaml` must contain `milestones`.
 - the selected phase id must exist.
 - phase ids and dependencies must validate before evidence collection starts.
+- the effective config after merge must contain a non-empty `repo`.
+- the effective config after merge must contain a non-empty `milestone`.
 - dependency warnings are computed before the selected phase runs.
 - output defaults come from `reportsDir` when explicit output paths are not supplied.
 
@@ -102,7 +108,13 @@ reports/owner_name-M2-20260514_103012.html
 
 Explicit CLI output paths still win.
 
-Phase mode must always produce a phase-aware JSON report in `reportsDir`, even if the user only supplies Markdown or HTML output paths. This keeps dependency lookup reliable. If an explicit `--json-out` is also provided, the implementation may write both the explicit JSON path and the `reportsDir` phase JSON unless they resolve to the same file.
+Each output path is resolved independently:
+
+- `--out` controls the Markdown path; if absent, write Markdown to `reportsDir`.
+- `--html-out` controls the HTML path; if absent, write HTML to `reportsDir`.
+- `--json-out` controls the user-requested JSON path; if absent, write JSON to `reportsDir`.
+
+Phase mode must always produce a phase-aware JSON report in `reportsDir`, even if the user only supplies Markdown or HTML output paths. This keeps dependency lookup reliable. If an explicit `--json-out` is also provided, write both the explicit JSON path and the `reportsDir` phase JSON unless they resolve to the same file.
 
 ## JSON Report Metadata
 
@@ -132,7 +144,9 @@ Dependency lookup scans `reportsDir` for `.json` files. It ignores invalid JSON 
 For each dependency id:
 
 - find reports with the same `repo` and matching `phase.id`
-- if multiple reports match, use the newest `generatedAt`
+- if multiple reports match, use the newest valid `generatedAt`
+- if a matching report has missing or invalid `generatedAt`, fall back to file mtime and include a warning
+- if timestamps tie, use lexical path order as the deterministic tie-breaker
 - `status: met` and `status: partially_met` are acceptable
 - `status: not_met` produces a warning
 - no matching report produces a warning
@@ -147,9 +161,12 @@ Phase mode fails before evidence collection when:
 - selected phase id is absent
 - selected phase id has an invalid format
 - any phase id has an invalid format
+- duplicate phase ids exist
 - `dependsOn` references a missing phase id
 - a phase depends on itself
 - dependencies contain a cycle
+- the effective merged config lacks a non-empty `repo`
+- the effective merged config lacks a non-empty `milestone`
 
 The error for an unknown phase should list available phase ids.
 
@@ -190,12 +207,16 @@ Add focused `node --test` coverage:
 - merge order is `CLI > phase > top-level`
 - `dependsOn` string and array forms normalize to arrays
 - invalid phase ids fail
+- duplicate phase ids fail
 - missing selected phase fails and lists available ids
 - missing dependency id fails
 - self-dependency fails
 - dependency cycles fail
+- selected phase must resolve to a non-empty milestone
 - dependency lookup finds same repo and phase id
 - multiple matching reports choose the newest `generatedAt`
+- missing or invalid `generatedAt` falls back to file mtime with a warning
+- tied timestamps use lexical path order deterministically
 - `met` and `partially_met` do not warn
 - `not_met` warns
 - missing dependency result warns
