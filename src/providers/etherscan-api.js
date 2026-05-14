@@ -25,6 +25,17 @@ const etherscanApiProvider = {
             return { items: [], counts: {}, links: {} };
         }
 
+        // WHY: 基本輸入驗證 — 以太坊地址為 42 字元的十六進制字串 (0x + 40 hex chars)
+        if (!/^0x[0-9a-fA-F]{40}$/.test(address)) {
+            console.warn(`[etherscan-api] Invalid Ethereum address format: ${address}`);
+            return {
+                items: [],
+                counts: { smart_contracts: 0 },
+                links: {},
+                metadata: { address, error: 'Invalid Ethereum address format' }
+            };
+        }
+
         const baseUrl = ctx.options?.etherscanUrl || 'https://api.etherscan.io/api';
         const apiKey = ctx.options?.etherscanApiKey || '';
         const apiKeyParam = apiKey ? `&apikey=${apiKey}` : '';
@@ -106,8 +117,14 @@ const etherscanApiProvider = {
                 metadata
             };
         } catch (error) {
-            console.error(`[etherscan-api] Error fetching data for ${address}:`, error.message);
-            throw new Error(`Etherscan API error: ${error.message}`);
+            // WHY: 統一錯誤處理 — provider 失敗應返回空結果而非拋錯，讓其他 provider 繼續運行
+            console.warn(`[etherscan-api] Error fetching data for ${address}: ${error.message}`);
+            return {
+                items: [],
+                counts: { smart_contracts: 0 },
+                links: {},
+                metadata: { address, error: error.message }
+            };
         }
     }
 };

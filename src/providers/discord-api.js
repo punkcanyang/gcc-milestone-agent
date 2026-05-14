@@ -35,7 +35,9 @@ const discordApiProvider = {
             // 解析失敗則直接將原本的字串當作 code
         }
 
-        if (!inviteCode) {
+        // WHY: 基本輸入驗證 — Discord 邀請碼通常為 6-10 位字母數字組合
+        if (!inviteCode || !/^[a-zA-Z0-9_-]{3,20}$/.test(inviteCode)) {
+            console.warn(`[discord-api] Invalid invite code format: ${inviteCode}`);
             return { items: [], counts: {}, links: {} };
         }
 

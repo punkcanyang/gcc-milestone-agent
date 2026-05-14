@@ -160,7 +160,8 @@ npm run demo:html
 
 ## Next milestones
 
-1. Publish as npm package (requires npm auth and final package name check)
+1. Plan and implement the formal frontend + product dashboard (Web dashboard or Tauri desktop app)
+2. Publish as npm package (requires npm auth and final package name check)
 
 ## npm publish
 

@@ -32,67 +32,88 @@ const articleCrawlerProvider = {
         const links = { articles: [] };
         let successfulCrawls = 0;
 
-        for (const url of urls) {
-            let page = null;
-            try {
-                page = await createPage();
-                
-                // WHY: 允許較長的超時時間，以應付載入緩慢的去中心化寫作平台
-                await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+        // WHY: 並行爬取多個文章，提升效率
+        // 使用 Promise.allSettled 確保單個失敗不影響其他
+        const results = await Promise.allSettled(
+            urls.map(async (url) => {
+                let page = null;
+                try {
+                    page = await createPage();
+                    
+                    // WHY: 允許較長的超時時間，以應付載入緩慢的去中心化寫作平台
+                    await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
 
-                // 移除一些干擾語義判斷的常見雜訊標籤 (script, style, nav, footer)
-                await page.evaluate(() => {
-                    const selectorsToRemove = ['script', 'style', 'nav', 'footer', 'header', 'aside'];
-                    selectorsToRemove.forEach(sel => {
-                        document.querySelectorAll(sel).forEach(el => el.remove());
+                    // 移除一些干擾語義判斷的常見雜訊標籤 (script, style, nav, footer)
+                    await page.evaluate(() => {
+                        const selectorsToRemove = ['script', 'style', 'nav', 'footer', 'header', 'aside'];
+                        selectorsToRemove.forEach(sel => {
+                            document.querySelectorAll(sel).forEach(el => el.remove());
+                        });
                     });
-                });
 
-                // 抓取純文字
-                let innerText = await page.evaluate(() => document.body.innerText || '');
-                
-                // 清理多餘的空白和換行
-                innerText = innerText.replace(/\n\s*\n/g, '\n\n').trim();
-                
-                // 截斷文字
-                if (innerText.length > MAX_CONTENT_LENGTH) {
-                    innerText = innerText.substring(0, MAX_CONTENT_LENGTH) + '\n... [Content Truncated]';
-                }
-
-                // 取得頁面標題
-                const title = await page.title() || 'Untitled Article';
-
-                // WHY: 截圖作為人類審查的視覺輔助
-                const safeName = url.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 50);
-                const screenshot = await takeScreenshot(page, `article-${safeName}`);
-
-                items.push({
-                    type: EVIDENCE_TYPES.CONTENT_ARTICLE,
-                    source: PROVIDER_SOURCES.ARTICLE_CRAWLER,
-                    title: `Article Crawled: ${title}`,
-                    // WHY: 將截取的純文字放進 body 中，這樣 semantic evaluation 就能對其進行關鍵字或 LLM 分析
-                    body: `Source URL: ${url}\n\n${innerText}`,
-                    url: url,
-                    metadata: {
-                        contentLength: innerText.length,
-                        attachments: [screenshot]
+                    // 抓取純文字
+                    let innerText = await page.evaluate(() => document.body.innerText || '');
+                    
+                    // 清理多餘的空白和換行
+                    innerText = innerText.replace(/\n\s*\n/g, '\n\n').trim();
+                    
+                    // 截斷文字
+                    if (innerText.length > MAX_CONTENT_LENGTH) {
+                        innerText = innerText.substring(0, MAX_CONTENT_LENGTH) + '\n... [Content Truncated]';
                     }
-                });
 
-                links.articles.push(url);
-                successfulCrawls++;
-            } catch (error) {
-                console.warn(`[article-crawler] Failed to crawl ${url}: ${error.message}`);
-                items.push({
-                    type: EVIDENCE_TYPES.CONTENT_ARTICLE,
-                    source: PROVIDER_SOURCES.ARTICLE_CRAWLER,
-                    title: `Failed to Crawl Article`,
-                    body: `Could not load or parse content from ${url}. Error: ${error.message}`,
-                    url: url,
-                    metadata: { error: error.message }
-                });
-            } finally {
-                if (page) await page.close();
+                    // 取得頁面標題
+                    const title = await page.title() || 'Untitled Article';
+
+                    // WHY: 截圖作為人類審查的視覺輔助
+                    const safeName = url.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 50);
+                    const screenshot = await takeScreenshot(page, `article-${safeName}`);
+
+                    return {
+                        success: true,
+                        item: {
+                            type: EVIDENCE_TYPES.CONTENT_ARTICLE,
+                            source: PROVIDER_SOURCES.ARTICLE_CRAWLER,
+                            title: `Article Crawled: ${title}`,
+                            // WHY: 將截取的純文字放進 body 中，這樣 semantic evaluation 就能對其進行關鍵字或 LLM 分析
+                            body: `Source URL: ${url}\n\n${innerText}`,
+                            url: url,
+                            metadata: {
+                                contentLength: innerText.length,
+                                attachments: [screenshot]
+                            }
+                        },
+                        url
+                    };
+                } catch (error) {
+                    console.warn(`[article-crawler] Failed to crawl ${url}: ${error.message}`);
+                    return {
+                        success: false,
+                        item: {
+                            type: EVIDENCE_TYPES.CONTENT_ARTICLE,
+                            source: PROVIDER_SOURCES.ARTICLE_CRAWLER,
+                            title: `Failed to Crawl Article`,
+                            body: `Could not load or parse content from ${url}. Error: ${error.message}`,
+                            url: url,
+                            metadata: { error: error.message }
+                        },
+                        url
+                    };
+                } finally {
+                    if (page) await page.close();
+                }
+            })
+        );
+
+        // WHY: 收集所有結果，無論成功或失敗
+        for (const result of results) {
+            if (result.status === 'fulfilled') {
+                const { success, item, url } = result.value;
+                items.push(item);
+                if (success) {
+                    links.articles.push(url);
+                    successfulCrawls++;
+                }
             }
         }
 

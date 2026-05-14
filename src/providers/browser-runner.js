@@ -46,6 +46,26 @@ export async function closeBrowser() {
     }
 }
 
+// WHY: 註冊進程退出時的清理邏輯，防止瀏覽器實例洩漏
+// 使用 process.once 確保只執行一次
+process.once('exit', () => {
+    if (browserInstance) {
+        browserInstance.close().catch(() => {
+            // 退出時忽略關閉錯誤
+        });
+    }
+});
+
+process.once('SIGINT', async () => {
+    await closeBrowser();
+    process.exit(0);
+});
+
+process.once('SIGTERM', async () => {
+    await closeBrowser();
+    process.exit(0);
+});
+
 /**
  * WHY: 建立具備基本反偵測設定的頁面
  * @returns {Promise<import('playwright').Page>}

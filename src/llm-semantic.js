@@ -135,7 +135,9 @@ export async function requestLlmSemanticVerdict({
 
   if (!res.ok) {
     const body = typeof res.text === 'function' ? await res.text() : '';
-    throw new Error(`OpenAI API error: HTTP ${res.status} ${body.slice(0, 240)}`);
+    // WHY: 脫敏處理 — 確保錯誤信息不包含 API key
+    const sanitizedBody = body.replace(/Bearer\s+[^\s"]+/gi, 'Bearer [REDACTED]');
+    throw new Error(`OpenAI API error: HTTP ${res.status} ${sanitizedBody.slice(0, 240)}`);
   }
 
   const payload = await res.json();
@@ -201,7 +203,9 @@ export async function requestLlmVisionExtraction(apiKey, imagePath, prompt = 'Pl
 
   if (!res.ok) {
     const body = typeof res.text === 'function' ? await res.text() : '';
-    throw new Error(`OpenAI Vision API error: HTTP ${res.status} ${body.slice(0, 240)}`);
+    // WHY: 脫敏處理 — 確保錯誤信息不包含 API key
+    const sanitizedBody = body.replace(/Bearer\s+[^\s"]+/gi, 'Bearer [REDACTED]');
+    throw new Error(`OpenAI Vision API error: HTTP ${res.status} ${sanitizedBody.slice(0, 240)}`);
   }
 
   const payload = await res.json();

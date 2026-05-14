@@ -1,4 +1,6 @@
 node_modules/
+frontend/src-tauri/target/
+.DS_Store
 *.log
 report.md
 demo-report.md

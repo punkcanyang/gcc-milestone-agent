@@ -1,5 +1,22 @@
 # WORKLOG - gcc-milestone-agent
 
+## 2026-04-29 前端與產品儀表板待排程補記
+
+### 背景
+目前 repo 已有 HTML report 內嵌的 reviewer dashboard，但正式前端與產品級儀表板尚未安排。
+
+### 更新內容
+- `TODO.md`
+  - 新增 `v0.6.0 — Frontend & Dashboard`
+  - 明確標記需要安排、規劃、執行正式前端與 dashboard
+  - 補充前端形態可走 Web dashboard 或 Tauri desktop app，後續需比較部署方式、本機檔案/CLI 存取、更新成本與審核員使用情境
+  - 補充本機資料儲存約束：若採 SQLite / local DB，Web / Tauri / CLI 必須透過單一資料存取通道，避免多程序各自直接讀寫同一份 DB 檔案
+  - 拆成前端產品入口、本機資料儲存與存取通道、產品級儀表板、執行順序四組待辦
+- `README.md`
+  - 將 formal frontend + product dashboard 放進下一階段 milestone，並標記 Web / Tauri 都是可行方向
+
+---
+
 ## 2026-04-29 里程碑資料需求探討與分類矩陣
 
 ### 概要
