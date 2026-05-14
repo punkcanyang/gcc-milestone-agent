@@ -134,6 +134,25 @@ test('renderHtmlReport includes dependency warnings when present', () => {
     assert.ok(html.includes('no prior result'), 'should render warning text');
 });
 
+test('renderHtmlReport escapes phase metadata and dependency warnings', () => {
+    const html = renderHtmlReport(makePayload({
+        phase: {
+            id: '<script>alert("phase")</script>',
+            title: '"><img onerror=alert(1)>',
+            dependsOn: ['M1 & <M0>']
+        },
+        dependencyWarnings: ['warn <script>alert("x")</script> & "quote"']
+    }));
+
+    assert.ok(!html.includes('<script>alert("phase")</script>'), 'should not render raw phase id');
+    assert.ok(!html.includes('"><img onerror=alert(1)>'), 'should not render raw phase title');
+    assert.ok(!html.includes('warn <script>alert("x")</script>'), 'should not render raw warning');
+    assert.ok(html.includes('&lt;script&gt;alert(&quot;phase&quot;)&lt;/script&gt;'), 'should escape phase id');
+    assert.ok(html.includes('&quot;&gt;&lt;img onerror=alert(1)&gt;'), 'should escape phase title');
+    assert.ok(html.includes('M1 &amp; &lt;M0&gt;'), 'should escape dependencies');
+    assert.ok(html.includes('warn &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &quot;quote&quot;'), 'should escape warnings');
+});
+
 /**
  * [For Future AI]
  * 1. 關鍵假設：
