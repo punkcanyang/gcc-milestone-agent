@@ -155,17 +155,30 @@ test('buildReport renders phase section and dependency warnings', () => {
   assert.match(markdown, /Phase: M2/);
   assert.match(markdown, /Community proof/);
   assert.match(markdown, /Dependency Warnings/);
+  assert.ok(
+    markdown.indexOf('- Rule Pass Rate') < markdown.indexOf('## Dependency Warnings'),
+    'dependency warnings should not interrupt the top metadata list'
+  );
 });
 
 test('runMilestoneCheck writes phase metadata to explicit JSON and phase JSON outputs', async () => {
   const previousCwd = process.cwd();
+  const previousFetch = globalThis.fetch;
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gcc-phase-run-'));
+  globalThis.fetch = async () => ({
+    ok: true,
+    status: 200,
+    statusText: 'OK',
+    headers: new Headers(),
+    json: async () => ({ content: Buffer.from('# Test README').toString('base64') }),
+    text: async () => ''
+  });
   process.chdir(dir);
   try {
     const result = await runMilestoneCheck({
       repo: 'owner/name',
       milestone: 'phase milestone',
-      providers: ',',
+      providers: 'url-checker',
       out: path.join(dir, 'custom.md'),
       jsonOut: path.join(dir, 'custom.json'),
       htmlOut: path.join(dir, 'custom.html'),
@@ -182,8 +195,21 @@ test('runMilestoneCheck writes phase metadata to explicit JSON and phase JSON ou
     assert.deepEqual(phasePayload.dependencyWarnings, ['Phase M2 depends on M1, but no prior result was found in reportsDir.']);
   } finally {
     process.chdir(previousCwd);
+    globalThis.fetch = previousFetch;
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('runMilestoneCheck rejects empty provider lists', async () => {
+  await assert.rejects(
+    () => runMilestoneCheck({
+      repo: 'owner/name',
+      milestone: 'phase milestone',
+      providers: ',',
+      out: 'unused.md'
+    }),
+    /At least one provider name required/
+  );
 });
 
 /**

@@ -191,15 +191,17 @@ function buildRuleSection(ruleEval) {
   }).join('\n')}\n`;
 }
 
-function formatPhaseSection(phase, dependencyWarnings = []) {
+function formatPhaseSection(phase) {
   if (!phase) return '';
   const dependsOn = phase.dependsOn?.length ? phase.dependsOn.join(', ') : '(none)';
-  const warningSection = dependencyWarnings.length
+  return `- Phase: ${phase.id}${phase.title ? ` (${phase.title})` : ''}\n` +
+    `- Phase Dependencies: ${dependsOn}\n`;
+}
+
+function formatDependencyWarningsSection(dependencyWarnings = []) {
+  return dependencyWarnings.length
     ? `\n## Dependency Warnings\n${dependencyWarnings.map((warning) => `- ⚠️ ${warning}`).join('\n')}\n`
     : '';
-  return `- Phase: ${phase.id}${phase.title ? ` (${phase.title})` : ''}\n` +
-    `- Phase Dependencies: ${dependsOn}\n` +
-    warningSection;
 }
 
 function buildReport({
@@ -260,7 +262,7 @@ function buildReport({
     `- Provider Bonus: +${providerBonus} (ci:${providerBonusBreakdown.ci}, community:${providerBonusBreakdown.community}, npm:${providerBonusBreakdown.npm}, url:${providerBonusBreakdown.url})\n` +
     `- Semantic Mode: ${semanticMode}\n` +
     `${semanticWarnings?.length ? `- Semantic Warnings: ${semanticWarnings.join(' | ')}\n` : ''}` +
-    formatPhaseSection(phase, dependencyWarnings) +
+    formatPhaseSection(phase) +
     `- Rule Pass Rate: ${ruleEval.passRate}% (${ruleEval.passed}/${ruleEval.total})\n\n` +
     `## Evidence Summary\n` +
     `- Commits counted: ${counts.commits}\n` +
@@ -268,6 +270,7 @@ function buildReport({
     `- Issues counted: ${counts.issues}\n` +
     `- Releases counted: ${counts.releases}\n` +
     truncationSection +
+    formatDependencyWarningsSection(dependencyWarnings) +
     errorSection +
     `\n## Evidence Links (sample)\n` +
     `### Commits\n${listOrNone(links.commits)}` +
@@ -379,32 +382,21 @@ export async function runMilestoneCheck({
   const providerNames = parseProviders(providersArg);
 
   // WHY: 使用 Provider 系統收集證據，傳遞 options 給特定的 provider (如 twitterHandle)
-  let evidence;
-  if (providerNames.length) {
-    evidence = await collectFromProviders(providerNames, {
-      owner,
-      name,
-      sinceIso,
-      token,
-      options: {
-        twitterHandle,
-        contractAddress,
-        etherscanUrl,
-        etherscanApiKey: process.env.ETHERSCAN_API_KEY,
-        articleUrls: articleUrls ? articleUrls.split(',').map(u => u.trim()).filter(Boolean) : [],
-        discordInvite,
-        telegramGroup
-      }
-    });
-  } else {
-    evidence = {
-      items: [],
-      counts: {},
-      links: {},
-      providerMeta: {},
-      errors: []
-    };
-  }
+  const evidence = await collectFromProviders(providerNames, {
+    owner,
+    name,
+    sinceIso,
+    token,
+    options: {
+      twitterHandle,
+      contractAddress,
+      etherscanUrl,
+      etherscanApiKey: process.env.ETHERSCAN_API_KEY,
+      articleUrls: articleUrls ? articleUrls.split(',').map(u => u.trim()).filter(Boolean) : [],
+      discordInvite,
+      telegramGroup
+    }
+  });
 
   // WHY: flattenCounts/flattenLinks 將多 provider 結果轉為舊格式，維持向下相容
   const counts = flattenCounts(evidence.counts);
