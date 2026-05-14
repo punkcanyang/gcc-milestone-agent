@@ -191,9 +191,22 @@ function buildRuleSection(ruleEval) {
   }).join('\n')}\n`;
 }
 
+function formatPhaseSection(phase, dependencyWarnings = []) {
+  if (!phase) return '';
+  const dependsOn = phase.dependsOn?.length ? phase.dependsOn.join(', ') : '(none)';
+  const warningSection = dependencyWarnings.length
+    ? `\n## Dependency Warnings\n${dependencyWarnings.map((warning) => `- ⚠️ ${warning}`).join('\n')}\n`
+    : '';
+  return `- Phase: ${phase.id}${phase.title ? ` (${phase.title})` : ''}\n` +
+    `- Phase Dependencies: ${dependsOn}\n` +
+    warningSection;
+}
+
 function buildReport({
   repo,
   milestone,
+  phase,
+  dependencyWarnings = [],
   since,
   profile,
   providers,
@@ -247,6 +260,7 @@ function buildReport({
     `- Provider Bonus: +${providerBonus} (ci:${providerBonusBreakdown.ci}, community:${providerBonusBreakdown.community}, npm:${providerBonusBreakdown.npm}, url:${providerBonusBreakdown.url})\n` +
     `- Semantic Mode: ${semanticMode}\n` +
     `${semanticWarnings?.length ? `- Semantic Warnings: ${semanticWarnings.join(' | ')}\n` : ''}` +
+    formatPhaseSection(phase, dependencyWarnings) +
     `- Rule Pass Rate: ${ruleEval.passRate}% (${ruleEval.passed}/${ruleEval.total})\n\n` +
     `## Evidence Summary\n` +
     `- Commits counted: ${counts.commits}\n` +
@@ -270,6 +284,8 @@ function buildReport({
 function buildJsonReport({
   repo,
   milestone,
+  phase,
+  dependencyWarnings = [],
   sinceIso,
   profile,
   providers,
@@ -292,6 +308,8 @@ function buildJsonReport({
     generatedAt: new Date().toISOString(),
     repo,
     milestone,
+    phase: phase || null,
+    dependencyWarnings: dependencyWarnings || [],
     profile: profile || null,
     providers,
     since: sinceIso,
@@ -336,6 +354,9 @@ export async function runMilestoneCheck({
   out,
   jsonOut,
   htmlOut,
+  phase,
+  dependencyWarnings = [],
+  phaseJsonOut,
   rulesFile,
   profile,
   providers: providersArg,
@@ -358,21 +379,32 @@ export async function runMilestoneCheck({
   const providerNames = parseProviders(providersArg);
 
   // WHY: 使用 Provider 系統收集證據，傳遞 options 給特定的 provider (如 twitterHandle)
-  const evidence = await collectFromProviders(providerNames, {
-    owner,
-    name,
-    sinceIso,
-    token,
-    options: { 
-      twitterHandle, 
-      contractAddress, 
-      etherscanUrl, 
-      etherscanApiKey: process.env.ETHERSCAN_API_KEY,
-      articleUrls: articleUrls ? articleUrls.split(',').map(u => u.trim()).filter(Boolean) : [],
-      discordInvite,
-      telegramGroup
-    }
-  });
+  let evidence;
+  if (providerNames.length) {
+    evidence = await collectFromProviders(providerNames, {
+      owner,
+      name,
+      sinceIso,
+      token,
+      options: {
+        twitterHandle,
+        contractAddress,
+        etherscanUrl,
+        etherscanApiKey: process.env.ETHERSCAN_API_KEY,
+        articleUrls: articleUrls ? articleUrls.split(',').map(u => u.trim()).filter(Boolean) : [],
+        discordInvite,
+        telegramGroup
+      }
+    });
+  } else {
+    evidence = {
+      items: [],
+      counts: {},
+      links: {},
+      providerMeta: {},
+      errors: []
+    };
+  }
 
   // WHY: flattenCounts/flattenLinks 將多 provider 結果轉為舊格式，維持向下相容
   const counts = flattenCounts(evidence.counts);
@@ -411,6 +443,8 @@ export async function runMilestoneCheck({
   const report = buildReport({
     repo,
     milestone,
+    phase,
+    dependencyWarnings,
     profile,
     providers: providerNames,
     since: sinceIso,
@@ -430,11 +464,14 @@ export async function runMilestoneCheck({
   });
 
   const reportPath = path.resolve(process.cwd(), out);
+  await fs.mkdir(path.dirname(reportPath), { recursive: true });
   await fs.writeFile(reportPath, report, 'utf8');
 
   const payload = buildJsonReport({
     repo,
     milestone,
+    phase,
+    dependencyWarnings,
     profile,
     providers: providerNames,
     sinceIso,
@@ -455,15 +492,22 @@ export async function runMilestoneCheck({
   });
 
   let jsonReportPath = null;
-  if (jsonOut) {
-    jsonReportPath = path.resolve(process.cwd(), jsonOut);
-    await fs.writeFile(jsonReportPath, JSON.stringify(payload, null, 2), 'utf8');
+  const jsonOutputPaths = new Set();
+  if (jsonOut) jsonOutputPaths.add(path.resolve(process.cwd(), jsonOut));
+  if (phaseJsonOut) jsonOutputPaths.add(path.resolve(process.cwd(), phaseJsonOut));
+  for (const outputPath of jsonOutputPaths) {
+    await fs.mkdir(path.dirname(outputPath), { recursive: true });
+    await fs.writeFile(outputPath, JSON.stringify(payload, null, 2), 'utf8');
   }
+  jsonReportPath = jsonOut
+    ? path.resolve(process.cwd(), jsonOut)
+    : (phaseJsonOut ? path.resolve(process.cwd(), phaseJsonOut) : null);
 
   let htmlReportPath = null;
   if (htmlOut) {
     htmlReportPath = path.resolve(process.cwd(), htmlOut);
     const html = renderHtmlReport(payload);
+    await fs.mkdir(path.dirname(htmlReportPath), { recursive: true });
     await fs.writeFile(htmlReportPath, html, 'utf8');
   }
 
@@ -483,7 +527,9 @@ export const _internal = {
   normalizeDate,
   parseRepo,
   parseProviders,
-  normalizeSemanticMode
+  normalizeSemanticMode,
+  buildReport,
+  buildJsonReport
 };
 
 /**

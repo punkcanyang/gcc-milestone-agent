@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { _internal } from '../src/milestone-check.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import { runMilestoneCheck, _internal } from '../src/milestone-check.js';
 
 /**
  * __ai_context__
@@ -96,6 +99,91 @@ test('normalizeSemanticMode accepts llm', () => {
 
 test('normalizeSemanticMode rejects invalid value', () => {
   assert.throws(() => _internal.normalizeSemanticMode('abc'), /Invalid --semantic-mode/);
+});
+
+test('buildJsonReport includes phase metadata and dependency warnings', () => {
+  const payload = _internal.buildJsonReport({
+    repo: 'owner/name',
+    milestone: 'phase milestone',
+    phase: { id: 'M2', title: 'Community proof', dependsOn: ['M1'] },
+    dependencyWarnings: ['Phase M2 depends on M1, but no prior result was found in reportsDir.'],
+    sinceIso: null,
+    profile: null,
+    providers: ['github-api'],
+    score: 50,
+    status: 'partially_met',
+    activityScore: 20,
+    baseScore: 40,
+    providerBonus: 10,
+    providerBonusBreakdown: { ci: 0, community: 0, npm: 0, url: 0 },
+    semanticMode: 'heuristic',
+    semanticWarnings: [],
+    counts: { commits: 0, pulls: 0, issues: 0, releases: 0 },
+    ruleEval: { passRate: 0, passed: 0, total: 0, rules: [] },
+    links: { commits: [], pulls: [], issues: [], releases: [] },
+    providerErrors: [],
+    providerMeta: {},
+    communityHealth: {}
+  });
+  assert.deepEqual(payload.phase, { id: 'M2', title: 'Community proof', dependsOn: ['M1'] });
+  assert.deepEqual(payload.dependencyWarnings, ['Phase M2 depends on M1, but no prior result was found in reportsDir.']);
+});
+
+test('buildReport renders phase section and dependency warnings', () => {
+  const markdown = _internal.buildReport({
+    repo: 'owner/name',
+    milestone: 'phase milestone',
+    phase: { id: 'M2', title: 'Community proof', dependsOn: ['M1'] },
+    dependencyWarnings: ['Phase M2 depends on M1, but no prior result was found in reportsDir.'],
+    since: null,
+    profile: null,
+    providers: ['github-api'],
+    score: 50,
+    status: 'partially_met',
+    activityScore: 20,
+    baseScore: 40,
+    providerBonus: 10,
+    providerBonusBreakdown: { ci: 0, community: 0, npm: 0, url: 0 },
+    semanticMode: 'heuristic',
+    semanticWarnings: [],
+    counts: { commits: 0, pulls: 0, issues: 0, releases: 0 },
+    links: { commits: [], pulls: [], issues: [], releases: [] },
+    ruleEval: { passRate: 0, passed: 0, total: 0, rules: [] },
+    providerErrors: [],
+    communityHealthMarkdown: ''
+  });
+  assert.match(markdown, /Phase: M2/);
+  assert.match(markdown, /Community proof/);
+  assert.match(markdown, /Dependency Warnings/);
+});
+
+test('runMilestoneCheck writes phase metadata to explicit JSON and phase JSON outputs', async () => {
+  const previousCwd = process.cwd();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gcc-phase-run-'));
+  process.chdir(dir);
+  try {
+    const result = await runMilestoneCheck({
+      repo: 'owner/name',
+      milestone: 'phase milestone',
+      providers: ',',
+      out: path.join(dir, 'custom.md'),
+      jsonOut: path.join(dir, 'custom.json'),
+      htmlOut: path.join(dir, 'custom.html'),
+      phaseJsonOut: path.join(dir, 'reports', 'owner_name-M2-fixed.json'),
+      phase: { id: 'M2', title: 'Community proof', dependsOn: ['M1'] },
+      dependencyWarnings: ['Phase M2 depends on M1, but no prior result was found in reportsDir.']
+    });
+
+    assert.equal(result.jsonReportPath, path.join(dir, 'custom.json'));
+    const explicitPayload = JSON.parse(fs.readFileSync(path.join(dir, 'custom.json'), 'utf8'));
+    const phasePayload = JSON.parse(fs.readFileSync(path.join(dir, 'reports', 'owner_name-M2-fixed.json'), 'utf8'));
+    assert.deepEqual(explicitPayload.phase, { id: 'M2', title: 'Community proof', dependsOn: ['M1'] });
+    assert.deepEqual(phasePayload.phase, explicitPayload.phase);
+    assert.deepEqual(phasePayload.dependencyWarnings, ['Phase M2 depends on M1, but no prior result was found in reportsDir.']);
+  } finally {
+    process.chdir(previousCwd);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 /**
