@@ -72,10 +72,12 @@ node src/cli.js \
 
 - `--repo <owner/name>` required
 - `--milestone <text>` required
+- `--phase <id>` optional milestone phase id from `.gcc-milestone.yaml`
 - `--since <ISO date>` optional
 - `--out <path>` markdown report path (default `./report.md`)
 - `--json-out <path>` optional JSON report path
 - `--html-out <path>` optional HTML report path
+- `--reports-dir <path>` directory for phase reports and dependency lookup (default `reports` in phase mode)
 - `--rules-file <path>` optional YAML rules file
 - `--profile <name>` built-in rule profile (`gcc-allocation`)
 - `--providers <list>` comma-separated evidence providers (default: `github-api`)
@@ -85,6 +87,42 @@ node src/cli.js \
 - `--discord-invite <code_or_url>` Discord invite code or URL to check community metrics
 - `--semantic-mode <mode>` semantic mode (`heuristic` or `llm`, default `heuristic`)
 - `--llm-model <name>` OpenAI model used when `--semantic-mode llm` is set (default `gpt-5-mini`)
+
+## Phase-based milestones
+
+`.gcc-milestone.yaml` can define milestone phases:
+
+```yaml
+repo: owner/name
+profile: gcc-allocation
+reportsDir: reports
+milestones:
+  - id: M1
+    title: Foundation
+    milestone: "Set up repo and publish submission template"
+  - id: M2
+    title: Community proof
+    milestone: "Reach active community discussions"
+    dependsOn: M1
+```
+
+Run one phase:
+
+```bash
+node src/cli.js --phase M2
+```
+
+Phase mode is opt-in. Without `--phase`, the CLI keeps the old single `--milestone` behavior. Dependency checks scan `reportsDir` for prior phase JSON reports. Missing or `not_met` dependencies produce warnings but do not block the run.
+
+When phase mode is active, missing output paths default to timestamped files in `reportsDir`:
+
+```text
+reports/owner_name-M2-20260514_103012.md
+reports/owner_name-M2-20260514_103012.json
+reports/owner_name-M2-20260514_103012.html
+```
+
+Explicit `--out`, `--json-out`, and `--html-out` still win for the user-requested output path. Phase mode still writes a phase-aware JSON report to `reportsDir` for future dependency lookup. If `--json-out` points somewhere else, both JSON files are written.
 
 ## Available providers
 
@@ -155,7 +193,8 @@ npm run demo:html
 - ✅ Playwright headless browser automation
 - ✅ Multi-source semantic evaluation (Articles, Twitter screenshots)
 - ✅ Discord Invite API for seamless community metrics
-- ✅ 89 unit/integration tests passing
+- ✅ Unit/integration tests passing via `npm test`
+- ✅ Phase-based milestone definitions via `.gcc-milestone.yaml` and `--phase`
 - ⚠️ LLM mode is assistive and still requires human final review
 
 ## Next milestones

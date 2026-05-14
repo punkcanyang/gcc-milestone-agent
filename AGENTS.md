@@ -32,6 +32,7 @@ src/cli.js  →  milestone-check.js  →  providers/index.js  →  rule-engine.j
 
 - **Entry**: `src/cli.js` (commander). Options are auto-camelCased (`--json-out` → `jsonOut`).
 - **Config**: `src/config-loader.js` reads `.gcc-milestone.yaml` from CWD. CLI options override config values. `--repo` and `--milestone` can come from either source.
+- **Phase mode**: opt-in via `--phase <id>`. `.gcc-milestone.yaml` may define `milestones`; phase config can override execution keys, but `repo` and output-routing keys are top-level/CLI-only.
 - **Core**: `src/milestone-check.js` orchestrates evidence collection, scoring, report generation.
 - **Providers**: `src/providers/*.js`. Registry in `index.js`. Each provider exports `{ name, types, collect }`. Adding a provider: import + push to `BUILTIN_PROVIDERS` in `index.js`, add `PROVIDER_SOURCES` and `EVIDENCE_TYPES` entries in `types.js`.
 - **Providers run concurrently** — a single provider failure does not block others.
@@ -46,6 +47,8 @@ src/cli.js  →  milestone-check.js  →  providers/index.js  →  rule-engine.j
 - All source files have Chinese `__ai_context__` doc blocks and `[For Future AI]` sections — read these before refactoring.
 - Tests import `_internal` exports for unit-testing private functions.
 - `--rules-file` overrides `--profile`, they never merge.
+- Config keys use Commander camelCase (`rulesFile`, `jsonOut`, `htmlOut`, `reportsDir`).
+- Phase dependency lookup reads phase-aware JSON reports from `reportsDir`; warnings do not block execution.
 - Provider source names in rules YAML (`source: github-actions`) must match `PROVIDER_SOURCES` values exactly.
 - `flattenCounts`/`flattenLinks` only merge the 4 legacy keys (commits, pulls, issues, releases) — new evidence types need explicit handling in `scoreEvidence`.
 

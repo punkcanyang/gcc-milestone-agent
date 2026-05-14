@@ -1,5 +1,17 @@
 # WORKLOG - gcc-milestone-agent
 
+## 2026-05-14 Milestone Phase Definition
+
+### 概要
+新增 `.gcc-milestone.yaml` phase schema 與 `--phase` 單期執行模式，保留舊的單一 milestone CLI 行為。
+
+### 決策
+- `.gcc-milestone.yaml` 是 phase source of truth。
+- `--phase` 為 opt-in；第一版不做 aggregate、timeline、`--all-phases`。
+- 合併順序為 CLI > phase > top-level。
+- `dependsOn` 只 warning，不阻擋。
+- phase mode 永遠輸出 phase-aware JSON 到 `reportsDir`。
+
 ## 2026-04-29 前端與產品儀表板待排程補記
 
 ### 背景

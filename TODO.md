@@ -1,6 +1,6 @@
 # TODO - gcc-milestone-agent
 
-> 最後更新：2026-05-10
+> 最後更新：2026-05-14
 
 ---
 
@@ -30,7 +30,7 @@
 ## v0.5.0 — Grant Lifecycle 📋
 
 ### 多期驗收支持
-- [ ] 支援 milestone 分期定義（M1 → M2 → M3）
+- [x] 支援 milestone 分期定義（M1 → M2 → M3）
 - [ ] 跨期進度對比報告
 - [ ] 時間軸視圖（Timeline visualization in HTML report）
 
