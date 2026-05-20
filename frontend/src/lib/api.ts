@@ -5,6 +5,10 @@ import type {
   ReportSummary,
   Report,
   AppConfig,
+  Project,
+  MilestonePhase,
+  ProjectWithPhases,
+  VerificationRun,
 } from "./types";
 
 /**
@@ -61,3 +65,54 @@ export async function getAppConfig(): Promise<AppConfig> {
 export async function saveAppConfig(config: AppConfig): Promise<void> {
   return invoke<void>("save_app_config", { config });
 }
+
+/**
+ * Create a new project with phases
+ */
+export async function createProject(
+  project: Omit<Project, "id" | "created_at">,
+  phases: Omit<MilestonePhase, "id" | "project_id" | "created_at">[]
+): Promise<number> {
+  return invoke<number>("create_project", { project, phases });
+}
+
+/**
+ * List all projects with their phases
+ */
+export async function listProjects(): Promise<ProjectWithPhases[]> {
+  return invoke<ProjectWithPhases[]>("list_projects");
+}
+
+/**
+ * Delete a project by ID
+ */
+export async function deleteProject(id: number): Promise<void> {
+  return invoke<void>("delete_project", { id });
+}
+
+/**
+ * Save a verification run result
+ */
+export async function saveRunResult(
+  projectId: number,
+  phaseId: string | null,
+  jsonPath: string,
+  htmlPath: string,
+  markdownPath: string
+): Promise<number> {
+  return invoke<number>("save_run_result", {
+    projectId,
+    phaseId,
+    jsonPath,
+    htmlPath,
+    markdownPath,
+  });
+}
+
+/**
+ * Get verification runs for a project
+ */
+export async function getProjectRuns(projectId: number): Promise<VerificationRun[]> {
+  return invoke<VerificationRun[]>("get_project_runs", { projectId });
+}
+

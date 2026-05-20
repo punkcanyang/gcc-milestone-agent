@@ -1,5 +1,33 @@
 # WORKLOG - gcc-milestone-agent
 
+## 2026-05-20 SQLite-Backed Project & Multi-Phase Database Integration (方案 A / v0.6.0 前端底层)
+
+### 概要
+完成了桌面 UI 本地 SQLite 存储通道与多项目多阶段里程碑的无缝打通。这实现了“单一存取通道原则”，保证 CLI 部分保持纯净的文件系统读写，而所有数据库读写、项目增删改查以及执行历史沉淀均统一封装在 Rust / Tauri 状态和命令中。前端通过 Zustand Store 精准联动，提供极富现代美学与高保真图表的仪表盘界面。
+
+### 变更清单
+- **Rust / Tauri 数据库建模与初始化**：
+  - 在 `frontend/src-tauri/src/lib.rs` 定义了 `Project`、`MilestonePhase`、`VerificationRun` 核心领域模型，并封装了 `DbState` 用 Mutex 包装的 Connection，以进行跨线程的安全多路复用。
+  - 编写并实现了 `init_db`，在 App Setup 阶段自动从用户的 AppData 目录加载 `milestones.db` 库并开启 `foreign_keys`，同时以事务形式创建 `projects`、`milestone_phases`、`verification_runs` 级联删除数据表。
+- **IPC 通道命令设计 (Tauri Commands)**：
+  - 实现并导出了 `create_project`、`list_projects`、`delete_project`、`save_run_result`、`get_project_runs`。
+  - 在 `save_run_result` 中，实现了读取 CLI 的 JSON 报告文件（含 `EvidenceCounts`、得分、通过率等）并直接沉淀入 `verification_runs` 数据表中。
+  - 将所有新命令注册进 `tauri::generate_handler!` 并在 App 的 `run` 函数中与 `setup` 逻辑安全绑定。
+- **React 端 TS 模型与 API 通道**：
+  - 在 `frontend/src/lib/types.ts` 定义了对应的 `Project`、`MilestonePhase`、`ProjectWithPhases` 和 `VerificationRun` 类型。
+  - 在 `frontend/src/lib/api.ts` 封装了所有底层 Tauri IPC command 调用的异步函数。
+- **Zustand Store 扩展与自动持久化**：
+  - 重构并扩展了 `frontend/src/lib/store.ts` 中的全局 Zustand Store，定义了项目 CRUD Action 和 runs 状态管理。
+  - 扩展了 `runVerification` 方法：当传入 `projectId` 和 `phaseId` 时，校验如果运行成功，会自动读取并保存指标至本地 SQLite，实现了无缝且全自动的防错数据沉淀流程。
+- **页面交互优化**：
+  - 重构了 `Dashboard.tsx` 页面，开发了包括“新建列管项目”折叠表单、阶段动态列表管理，并且实现了包含多阶段横向时间轴（Timeline）可视化的列管项目看板卡片，支持一键点击对特定阶段触发校验。
+  - 接入了真实的 SQLite 汇总历史数据，实现了 Recharts 折线图（得分变化趋势）和饼图（状态达成分布）的高保真图表渲染。
+  - 重构了 `NewVerification.tsx` 页面，提供“关联列管项目”与“手动自由验证”的双重交互选择。当选择列管项目和阶段时，会自动从数据库中预填 Repository 名字、相应的 Milestone 描述文本和 rules_profile。
+- **测试与编译**：
+  - 在 `frontend/src-tauri` 下成功执行 `cargo check`，Rust 模块在 Bundled C SQLite 构建模式下全部通过，零警告零报错。
+
+---
+
 ## 2026-05-20 Cross-Phase Progress Comparison Report (方案 1)
 
 ### 概要

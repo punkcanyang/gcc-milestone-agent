@@ -106,3 +106,48 @@ export interface AppConfig {
   reports_dir: string;
   github_token?: string;
 }
+
+export interface Project {
+  id?: number;
+  repo: string;
+  name: string;
+  description: string;
+  config_yaml: string;
+  created_at: string;
+}
+
+export interface MilestonePhase {
+  id?: number;
+  project_id: number;
+  phase_id: string;
+  title: string;
+  depends_on: string; // JSON string of phase_ids
+  rules_profile?: string;
+  created_at: string;
+}
+
+export interface ProjectWithPhases {
+  project: Project;
+  phases: MilestonePhase[];
+}
+
+export interface VerificationRun {
+  id?: number;
+  project_id: number;
+  phase_id?: string;
+  status: "met" | "partially_met" | "not_met" | "failed";
+  score: number;
+  rule_pass_rate: number;
+  commits_count: number;
+  pulls_count: number;
+  issues_count: number;
+  releases_count: number;
+  stars?: number;
+  forks?: number;
+  contributors?: number;
+  json_path: string;
+  html_path: string;
+  markdown_path: string;
+  error_message?: string;
+  generated_at: string;
+}

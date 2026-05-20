@@ -4,6 +4,65 @@ use std::path::PathBuf;
 use std::process::Command;
 use tauri::Manager;
 
+/*
+__ai_context__
+本模块负责 Tauri 桌面端的核心 IPC 通道。
+为支持 v0.6.0 前端产品形态的本地项目管理与历史校验趋势，本模块内置了对 SQLite 本地数据库的操作。
+采用 rusqlite 库，在 app_data_dir/milestones.db 初始化三张表：projects、milestone_phases、verification_runs。
+采用“单一存取通道原则”，所有数据库 CRUD 操作完全在此处执行，通过 Tauri Command 向前端 React 暴露。
+*/
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Project {
+    pub id: Option<i64>,
+    pub repo: String,
+    pub name: String,
+    pub description: String,
+    pub config_yaml: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct MilestonePhase {
+    pub id: Option<i64>,
+    pub project_id: i64,
+    pub phase_id: String,
+    pub title: String,
+    pub depends_on: String, // JSON array string
+    pub rules_profile: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ProjectWithPhases {
+    pub project: Project,
+    pub phases: Vec<MilestonePhase>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct VerificationRun {
+    pub id: Option<i64>,
+    pub project_id: i64,
+    pub phase_id: Option<String>,
+    pub status: String,
+    pub score: i32,
+    pub rule_pass_rate: i32,
+    pub commits_count: i32,
+    pub pulls_count: i32,
+    pub issues_count: i32,
+    pub releases_count: i32,
+    pub stars: Option<i32>,
+    pub forks: Option<i32>,
+    pub contributors: Option<i32>,
+    pub json_path: String,
+    pub html_path: String,
+    pub markdown_path: String,
+    pub error_message: Option<String>,
+    pub generated_at: String,
+}
+
+pub struct DbState(pub std::sync::Mutex<rusqlite::Connection>);
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct VerificationRequest {
     pub repo: String,
@@ -305,6 +364,286 @@ async fn save_app_config(
     Ok(())
 }
 
+fn init_db(conn: &rusqlite::Connection) -> Result<(), String> {
+    // 启用外键支持
+    conn.execute("PRAGMA foreign_keys = ON", [])
+        .map_err(|e| format!("Failed to enable foreign keys: {}", e))?;
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS projects (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            repo TEXT NOT NULL UNIQUE,
+            name TEXT NOT NULL,
+            description TEXT NOT NULL,
+            config_yaml TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )",
+        [],
+    ).map_err(|e| format!("Failed to create projects table: {}", e))?;
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS milestone_phases (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER NOT NULL,
+            phase_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            depends_on TEXT NOT NULL,
+            rules_profile TEXT,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE,
+            UNIQUE(project_id, phase_id)
+        )",
+        [],
+    ).map_err(|e| format!("Failed to create milestone_phases table: {}", e))?;
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS verification_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER NOT NULL,
+            phase_id TEXT,
+            status TEXT NOT NULL,
+            score INTEGER NOT NULL,
+            rule_pass_rate INTEGER NOT NULL,
+            commits_count INTEGER NOT NULL,
+            pulls_count INTEGER NOT NULL,
+            issues_count INTEGER NOT NULL,
+            releases_count INTEGER NOT NULL,
+            stars INTEGER,
+            forks INTEGER,
+            contributors INTEGER,
+            json_path TEXT NOT NULL,
+            html_path TEXT NOT NULL,
+            markdown_path TEXT NOT NULL,
+            error_message TEXT,
+            generated_at TEXT NOT NULL,
+            FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
+        )",
+        [],
+    ).map_err(|e| format!("Failed to create verification_runs table: {}", e))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+async fn create_project(
+    project: Project,
+    phases: Vec<MilestonePhase>,
+    db: tauri::State<'_, DbState>,
+) -> Result<i64, String> {
+    let mut conn = db.0.lock().map_err(|e| format!("Lock error: {}", e))?;
+    
+    // 开启事务以保证 ACID
+    let tx = conn.transaction().map_err(|e| format!("Transaction error: {}", e))?;
+    
+    tx.execute(
+        "INSERT INTO projects (repo, name, description, config_yaml, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+        (
+            &project.repo,
+            &project.name,
+            &project.description,
+            &project.config_yaml,
+            chrono::Utc::now().to_rfc3339(),
+        ),
+    ).map_err(|e| format!("Failed to insert project: {}", e))?;
+    
+    let project_id = tx.last_insert_rowid();
+    
+    for phase in phases {
+        tx.execute(
+            "INSERT INTO milestone_phases (project_id, phase_id, title, depends_on, rules_profile, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            (
+                project_id,
+                &phase.phase_id,
+                &phase.title,
+                &phase.depends_on,
+                &phase.rules_profile,
+                chrono::Utc::now().to_rfc3339(),
+            ),
+        ).map_err(|e| format!("Failed to insert phase {}: {}", phase.phase_id, e))?;
+    }
+    
+    tx.commit().map_err(|e| format!("Commit error: {}", e))?;
+    Ok(project_id)
+}
+
+#[tauri::command]
+async fn list_projects(
+    db: tauri::State<'_, DbState>,
+) -> Result<Vec<ProjectWithPhases>, String> {
+    let conn = db.0.lock().map_err(|e| format!("Lock error: {}", e))?;
+    
+    let mut stmt = conn
+        .prepare("SELECT id, repo, name, description, config_yaml, created_at FROM projects ORDER BY id DESC")
+        .map_err(|e| format!("Prepare error: {}", e))?;
+        
+    let project_rows = stmt.query_map([], |row| {
+        Ok(Project {
+            id: Some(row.get(0)?),
+            repo: row.get(1)?,
+            name: row.get(2)?,
+            description: row.get(3)?,
+            config_yaml: row.get(4)?,
+            created_at: row.get(5)?,
+        })
+    }).map_err(|e| format!("Query error: {}", e))?;
+    
+    let mut result = Vec::new();
+    for proj_res in project_rows {
+        let proj = proj_res.map_err(|e| format!("Row error: {}", e))?;
+        let proj_id = proj.id.unwrap_or_default();
+        
+        let mut p_stmt = conn
+            .prepare("SELECT id, project_id, phase_id, title, depends_on, rules_profile, created_at FROM milestone_phases WHERE project_id = ?1 ORDER BY id ASC")
+            .map_err(|e| format!("Prepare phase error: {}", e))?;
+            
+        let phase_rows = p_stmt.query_map([proj_id], |row| {
+            Ok(MilestonePhase {
+                id: Some(row.get(0)?),
+                project_id: row.get(1)?,
+                phase_id: row.get(2)?,
+                title: row.get(3)?,
+                depends_on: row.get(4)?,
+                rules_profile: row.get(5)?,
+                created_at: row.get(6)?,
+            })
+        }).map_err(|e| format!("Query phase error: {}", e))?;
+        
+        let mut phases = Vec::new();
+        for p_res in phase_rows {
+            phases.push(p_res.map_err(|e| format!("Phase row error: {}", e))?);
+        }
+        
+        result.push(ProjectWithPhases { project: proj, phases });
+    }
+    
+    Ok(result)
+}
+
+#[tauri::command]
+async fn delete_project(
+    id: i64,
+    db: tauri::State<'_, DbState>,
+) -> Result<(), String> {
+    let conn = db.0.lock().map_err(|e| format!("Lock error: {}", e))?;
+    
+    // SQLite 外键默认关闭，需要显式开启以启用 CASCADE
+    conn.execute("PRAGMA foreign_keys = ON", [])
+        .map_err(|e| format!("Failed to enable foreign keys: {}", e))?;
+        
+    conn.execute("DELETE FROM projects WHERE id = ?1", [id])
+        .map_err(|e| format!("Delete error: {}", e))?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn save_run_result(
+    project_id: i64,
+    phase_id: Option<String>,
+    json_path: String,
+    html_path: String,
+    markdown_path: String,
+    db: tauri::State<'_, DbState>,
+) -> Result<i64, String> {
+    let conn = db.0.lock().map_err(|e| format!("Lock error: {}", e))?;
+    
+    let json_content = fs::read_to_string(&json_path)
+        .map_err(|e| format!("Failed to read JSON report: {}", e))?;
+    let json: serde_json::Value = serde_json::from_str(&json_content)
+        .map_err(|e| format!("Failed to parse JSON report: {}", e))?;
+        
+    let status = json["status"].as_str().unwrap_or("failed").to_string();
+    let score = json["score"].as_i64().unwrap_or(0) as i32;
+    let rule_pass_rate = json["rulePassRate"].as_i64().unwrap_or(0) as i32;
+    
+    let evidence_counts = &json["evidenceCounts"];
+    let commits_count = evidence_counts["commits"].as_i64().unwrap_or(0) as i32;
+    let pulls_count = evidence_counts["pulls"].as_i64().unwrap_or(0) as i32;
+    let issues_count = evidence_counts["issues"].as_i64().unwrap_or(0) as i32;
+    let releases_count = evidence_counts["releases"].as_i64().unwrap_or(0) as i32;
+    
+    let community = &json["communityHealth"];
+    let stars = community["stars"].as_i64().map(|n| n as i32);
+    let forks = community["forks"].as_i64().map(|n| n as i32);
+    let contributors = community["contributors"].as_i64().map(|n| n as i32);
+    
+    let generated_at = json["generatedAt"].as_str()
+        .unwrap_or("")
+        .to_string();
+        
+    conn.execute(
+        "INSERT INTO verification_runs (
+            project_id, phase_id, status, score, rule_pass_rate,
+            commits_count, pulls_count, issues_count, releases_count,
+            stars, forks, contributors, json_path, html_path, markdown_path,
+            generated_at
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+        (
+            project_id,
+            &phase_id,
+            &status,
+            score,
+            rule_pass_rate,
+            commits_count,
+            pulls_count,
+            issues_count,
+            releases_count,
+            stars,
+            forks,
+            contributors,
+            &json_path,
+            &html_path,
+            &markdown_path,
+            &generated_at,
+        ),
+    ).map_err(|e| format!("Failed to insert verification run: {}", e))?;
+    
+    Ok(conn.last_insert_rowid())
+}
+
+#[tauri::command]
+async fn get_project_runs(
+    project_id: i64,
+    db: tauri::State<'_, DbState>,
+) -> Result<Vec<VerificationRun>, String> {
+    let conn = db.0.lock().map_err(|e| format!("Lock error: {}", e))?;
+    
+    let mut stmt = conn
+        .prepare("SELECT id, project_id, phase_id, status, score, rule_pass_rate, commits_count, pulls_count, issues_count, releases_count, stars, forks, contributors, json_path, html_path, markdown_path, error_message, generated_at FROM verification_runs WHERE project_id = ?1 ORDER BY id DESC")
+        .map_err(|e| format!("Prepare runs error: {}", e))?;
+        
+    let run_rows = stmt.query_map([project_id], |row| {
+        Ok(VerificationRun {
+            id: Some(row.get(0)?),
+            project_id: row.get(1)?,
+            phase_id: row.get(2)?,
+            status: row.get(3)?,
+            score: row.get(4)?,
+            rule_pass_rate: row.get(5)?,
+            commits_count: row.get(6)?,
+            pulls_count: row.get(7)?,
+            issues_count: row.get(8)?,
+            releases_count: row.get(9)?,
+            stars: row.get(10)?,
+            forks: row.get(11)?,
+            contributors: row.get(12)?,
+            json_path: row.get(13)?,
+            html_path: row.get(14)?,
+            markdown_path: row.get(15)?,
+            error_message: row.get(16)?,
+            generated_at: row.get(17)?,
+        })
+    }).map_err(|e| format!("Query runs error: {}", e))?;
+    
+    let mut runs = Vec::new();
+    for r_res in run_rows {
+        runs.push(r_res.map_err(|e| format!("Run row error: {}", e))?);
+    }
+    
+    Ok(runs)
+}
+
 fn find_cli_path(app_handle: &tauri::AppHandle) -> Result<PathBuf, String> {
     // Try to find the CLI script relative to the app
     let app_dir = app_handle
@@ -337,6 +676,21 @@ fn find_cli_path(app_handle: &tauri::AppHandle) -> Result<PathBuf, String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .setup(|app| {
+            let app_dir = app.path().app_data_dir()
+                .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+            fs::create_dir_all(&app_dir)
+                .map_err(|e| format!("Failed to create app directory: {}", e))?;
+            
+            let db_path = app_dir.join("milestones.db");
+            let conn = rusqlite::Connection::open(&db_path)
+                .map_err(|e| format!("Failed to open database: {}", e))?;
+                
+            init_db(&conn)?;
+            
+            app.manage(DbState(std::sync::Mutex::new(conn)));
+            Ok(())
+        })
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
@@ -349,6 +703,11 @@ pub fn run() {
             delete_report,
             get_app_config,
             save_app_config,
+            create_project,
+            list_projects,
+            delete_project,
+            save_run_result,
+            get_project_runs,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
