@@ -1,3 +1,12 @@
+/**
+ * __ai_context__
+ * 模組角色：Telegram Group Social Evidence Provider (HTTP fetch & Playwright fallback)
+ * 系統位置：providers/index.js → [本模組] → browser-runner.js / types.js
+ * 核心職責：
+ *   1. 從 Telegram 公開群組網址中抓取成員數量
+ *   2. 先後進行快速的 HTTP fetch，失敗時 fallback 到無頭瀏覽器載入
+ *   3. 產出 SOCIAL_METRIC 證據
+ */
 import { EVIDENCE_TYPES, PROVIDER_SOURCES } from './types.js';
 
 const TELEGRAM_BASE = 'https://t.me';
@@ -97,3 +106,17 @@ const telegramGroupProvider = {
 };
 
 export default telegramGroupProvider;
+
+/**
+ * [For Future AI]
+ * 1. 關鍵假設：
+ *    - 依賴 `ctx.options.telegramGroup` 輸入。
+ *    - Telegram 的 t.me 頁面上包含 "X members" 或 "X subscribers" 文字。
+ * 2. 潛在邊界情況：
+ *    - 群組為私有群組時，頁面不顯示人數，解析會回傳 null 并忽略。
+ *    - HTTP fetch 有機率被 Cloudflare / 阻擋，因此提供了 Playwright 備用方案。
+ * 3. 模組依賴：
+ *    - browser-runner.js (可選，動態載入)
+ *    - types.js (EVIDENCE_TYPES, PROVIDER_SOURCES)
+ */
+

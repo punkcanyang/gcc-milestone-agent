@@ -107,6 +107,7 @@ const twitterBrowserProvider = {
                     twitter: [url]
                 },
                 metadata: {
+                    handle,
                     followerCount,
                     attachments: [screenshot]
                 }

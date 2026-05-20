@@ -1,5 +1,84 @@
 # WORKLOG - gcc-milestone-agent
 
+## 2026-05-20 Cross-Phase Progress Comparison Report (方案 1)
+
+### 概要
+完成了「跨期进度对比报告」（方案 1）的完整开发。该功能能够自动解析历史阶段报告中的各项核心指标，计算其差值（Delta），并在 Markdown 及 HTML 报告中以高可读性的对比表格直观呈现。
+
+### 变更清单
+- **数据源与差异计算**：
+  - 在 `src/phase-reports.js` 的 `loadPhaseTimelineData` 内部扩展了历史指标信息的提取，包含 `rulePassRate`、`evidenceCounts` 及 `communityHealth` 数据。
+  - 在 `loadPhaseTimelineData` 的返回节点中，对于已运行的阶段通过循环前置节点计算出其与上一个已运行阶段的各项差值（如分数差、提交数差、Stars数差等），存储在 `deltas` 属性中。
+- **Markdown 报告增强**：
+  - 在 `src/milestone-check.js` 中新增 `formatComparisonSection`，利用简洁明了的 ASCII 字符画表格展示阶段核心指标对比及差异（如分数变化 `-20` 等）。
+- **HTML 报告与对比展示**：
+  - 在 `src/html-report.js` 中新增 `renderComparison` 方法，渲染出一个响应式的进度对比表格 `.comp-table`，并对增量数值应用色差处理（正增量标记为绿色并带有 `+` 符号，负增量标记为红色，零或无数据则以灰色样式区分）。
+  - 对表格各行输出增加严格的 HTML 特殊字符转义防护，防止潜在的 XSS 安全隐患。
+- **测试与验证**：
+  - 在 `test/phase-reports.test.js` 中新增了 timeline `deltas` 差值计算与指标加载的单元测试。
+  - 在 `test/html-report.test.js` 中新增了 `renderComparison` 表格元素渲染及 XSS 防御的单元测试，同时测试了在历史阶段不足 2 个时自动隐藏对比板块的边界逻辑。
+  - 运行 `npm test`，全部 164 个测试用例均 100% 通过。
+
+---
+
+## 2026-05-20 CLI Batch Verification Mode & Aggregation Dashboard (方案 A)
+
+### 概要
+完成了 CLI 批量验证模式（Batch Mode）与多项目聚合仪表盘（Aggregation Dashboard）的完整开发。支持通过 `--batch <path>` 读取 YAML 配置进行多项目串行校验、容错机制（单个项目失败不中断整体流程）、输出报告相对化以及生成极具现代感与响应式交互的 `index.html` 汇总仪表盘。
+
+### 变更清单
+- **仪表盘 HTML 渲染**：
+  - 在 `src/html-report.js` 中实现并导出了 `renderBatchDashboardHtml` 函数，生成具备现代暗黑渐变背景、KPI 指标卡片、动态搜索过滤以及错误原因详情展示的 HTML Aggregation Dashboard。
+- **CLI 批量执行引擎**：
+  - 修改 `src/cli.js`，引入 `--batch <path>` 选项。
+  - 实现基于 YAML 的批量配置解析，支持参数的全局继承与覆盖。
+  - 采用 `for...of` 串行机制以防 Playwright 浏览器实例并发限制，并包装了 `try...catch` 以在项目失败时将其状态记录为 `failed`，保留其错误信息并不中断整个批量校验。
+  - 在所有项目校验完毕后的 `finally` 块中调用 `closeBrowser()` 释放浏览器资源。
+  - 生成 `reportsDir/index.html` 仪表盘，且将各子项目的 HTML 和 Markdown 报告路径替换为基于 reports 目录的相对路径，以确保网页中可直接跳转。
+- **测试与验证**：
+  - 在 `test/html-report.test.js` 中新增对 `renderBatchDashboardHtml` 的 KPI 统计、表格渲染、XSS 转义过滤和 `failed` 状态容错呈现的单元测试。
+  - 新增集成测试 `test/batch-mode.test.js`，使用真实 YAML 模拟批量运行，并验证容错退出码 0 以及 `index.html` 仪表盘的生成和内容。
+  - 运行 `npm test` 验证，全部 162 个测试用例全数通过。
+
+---
+
+## 2026-05-20 Milestone Phase Dependency Progress (Timeline)
+
+### 概要
+实现了多阶段（Phase）里程碑验证结果的时间轴（Timeline）合并与可视化展示。支持按配置顺序排序、历史数据自动去重保留最新、未运行阶段占位等功能，并同时在 Markdown 及 HTML 报告中完成了可视化渲染和单元测试覆盖。
+
+### 变更清单
+- **核心数据聚合**：
+  - 在 `src/phase-reports.js` 中实现并导出了 `loadPhaseTimelineData`，用于遍历 `reportsDir` 中的历史 json 报告，按配置顺序归纳出完整的里程碑节点，并在运行时注入 `isCurrent` 标记。
+  - 修改 `src/milestone-check.js` 以从 `loadPhaseTimelineData` 读取时间轴数据，并将其挂载在顶级 `payload.timeline` 下。
+- **Markdown 报告增强**：
+  - 修改 `src/milestone-check.js`，在渲染 Markdown 报告时新增 `## Phase Progress Timeline` 表格。
+- **HTML 报告与 CSS 特效**：
+  - 修改 `src/html-report.js`，新增响应式横向时间轴 UI，支持根据 `status` 着色，为 `current` 状态节点添加呼吸灯动画效果，并对节点 id 和标题进行严格的 XSS 转义防护。
+- **测试与验证**：
+  - 在 `test/phase-reports.test.js` 新增对 `loadPhaseTimelineData` 内部逻辑（时间轴合并、去重、无 config 排序、当前运行注入）的测试用例。
+  - 在 `test/html-report.test.js` 新增对时间轴 HTML 元素渲染、CSS 类应用及 XSS 防护的测试用例。
+  - 运行 `npm test` 验证，所有 159 个测试用例全数通过。
+
+---
+
+## 2026-05-20 Code Audit & Fixes
+
+### 概要
+完成了对项目核心模块的全面代码审计，并完成了相关严重 Bug 的修复与 AI-First 开发规范的补齐。
+
+### 变更清单
+- **编写审计报告**：创建了 `analysis_results.md` 并提交用户。
+- **严重 Bug 修复**：
+  - 修改 `src/providers/discord-api.js`，将 `memberCount` 和 `onlineCount` 加入返回顶级 `metadata`，修复了 Discord 社区健康度指标数据缺失的问题。
+  - 修改 `src/providers/twitter-browser.js`，将 `handle` 加入顶级 `metadata`，修复了 HTML/Markdown 报告中 Twitter 账号名称缺失的问题。
+- **AI-First 规范补齐**：
+  - 为 `src/cli.js`、`src/config-loader.js`、`src/community-health.js`、`src/snapshot-store.js`、`src/providers/telegram-group.js` 补齐了 `__ai_context__` 模块顶层文档与 `[For Future AI]` 结尾注释块。
+- **单元测试验证**：
+  - 运行 `npm test`，全部 155 个单元测试项目均成功通过，未发现回归问题。
+
+---
+
 ## 2026-05-14 Milestone Phase Definition
 
 ### 概要

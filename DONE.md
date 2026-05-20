@@ -35,3 +35,26 @@
 - [x] Semantic rule reasoning with confidence scores (替換純 keyword 方式)
 - [x] LLM-based 語義判定 (可選)
 - [x] TypeScript 遷移或 JSDoc 類型完善
+
+## v0.4.0 — Community Growth Monitor ✅
+
+- [x] 設計 Community Health Check 架構（community-health.js 模組）
+- [x] Discord / Telegram 社群活躍度快照（成員數、訊息頻率）
+- [x] Twitter/X 帳號指標抓取（follower、engagement rate）
+- [x] 論壇/Discourse 活躍度檢查（github-discussions provider）
+- [x] 整合到報告：Community Growth 章節（Markdown + HTML，含趨勢對比）
+- [x] 新增 `discord-community` provider（discord-api provider）
+- [x] 新增 `twitter-social` provider（追蹤項目 Twitter 帳號指標）
+- [x] 新增 `forum-activity` provider（github-discussions provider）
+- [x] 社區指標歷史快照存儲（JSON，支持趨勢對比）
+- [x] 引入 Playwright / Puppeteer 作為 browser automation 依賴
+- [x] 設計 browser-task runner（可配置的瀏覽器檢查任務）
+- [x] 反偵測策略（user-agent、頭部隨機化、速率限制）
+- [x] 截圖證據存檔（作為驗收報告的可視化附件）
+
+## v0.5.0 — Grant Lifecycle (部分完成) 🔄
+
+- [x] 支援 milestone 分期定義（M1 → M2 → M3）
+- [x] 时间轴视图（Timeline visualization in HTML report）
+- [x] 批量模式 CLI（从 YAML/JSON 批量读取多个 repo+milestone 配置）
+- [x] 聚合仪表板（所有被审核项目的概览报告）

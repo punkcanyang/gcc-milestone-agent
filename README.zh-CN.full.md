@@ -38,10 +38,20 @@ node src/cli.js \
   --html-out ./demo-gcc-report.html
 ```
 
+## 多期里程碑支持与时间轴 (Timeline)
+
+可以在配置文件（默认 `.gcc-milestone.yaml`）中定义 milestones 数组。当传入 `--phase <id>` 选项时：
+1. **依赖检查**：系统自动验证依赖的前置 Phase 是否已经生成通过的报告，未通过时输出警告。
+2. **自动汇总**：自动扫描 `reportsDir` 内的历史报告，并根据 `milestones` 配置的顺序聚合成完整的时间轴，未运行阶段显示为 `pending`。
+3. **可视化渲染**：时间轴会以表格形式输出在 Markdown 报告中，并以精美的横向响应式时间轴在 HTML 中展示，当前执行的阶段还包含呼吸灯（pulsing aura）动画效果。
+
 ## 参数说明
 
 - `--repo <owner/name>`：目标仓库（必填）
 - `--milestone <text>`：里程碑描述（必填）
+- `--config <path>`：可选的配置文件路径（默认 `.gcc-milestone.yaml`）
+- `--phase <id>`：单期里程碑阶段 id
+- `--reports-dir <path>`：历史报告存放与读取路径
 - `--since <date>`：时间窗口过滤（可选）
 - `--profile <name>`：预置规则集（当前支持 `gcc-allocation`）
 - `--rules-file <path>`：YAML 规则文件（可选）

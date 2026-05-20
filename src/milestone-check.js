@@ -18,6 +18,7 @@ import { collectFromProviders, flattenCounts, flattenLinks, getAvailableProvider
 import { PROVIDER_SOURCES } from './providers/types.js';
 import { buildCommunityHealth, computeTrend, formatCommunityHealthMarkdown } from './community-health.js';
 import { saveSnapshot, loadPreviousSnapshot } from './snapshot-store.js';
+import { loadPhaseTimelineData } from './phase-reports.js';
 
 // --- 評分權重常數 ---
 // WHY: 各類型證據對 milestone 完成度的貢獻不同
@@ -204,11 +205,97 @@ function formatDependencyWarningsSection(dependencyWarnings = []) {
     : '';
 }
 
+function formatTimelineSection(timeline = []) {
+  if (!timeline.length) return '';
+  const rows = timeline.map((p) => {
+    const isCurrentText = p.isCurrent ? ' **(current)**' : '';
+    const scoreText = p.score !== null ? `${p.score}/100` : 'N/A';
+    const dateText = p.generatedAt ? p.generatedAt.slice(0, 10) : '-';
+    const bold = p.isCurrent ? '**' : '';
+    return `| ${bold}${p.id}${isCurrentText}${bold} | ${bold}${p.title || 'none'}${bold} | ${bold}${p.status}${bold} | ${bold}${scoreText}${bold} | ${bold}${dateText}${bold} |`;
+  });
+  return `\n## Phase Progress Timeline\n` +
+    `| Phase ID | Title | Status | Score | Date |\n` +
+    `|---|---|---|---|---|\n` +
+    rows.join('\n') + '\n';
+}
+
+function formatComparisonSection(timeline = []) {
+  const ranItems = timeline.filter((item) => item.status !== 'pending');
+  if (ranItems.length < 2) return '';
+
+  const formatDelta = (val, isPercent = false) => {
+    if (val === null || val === undefined) return '-';
+    const sign = val > 0 ? '+' : '';
+    const suffix = isPercent ? '%' : '';
+    return `${sign}${val}${suffix}`;
+  };
+
+  const headers = ['Metric', ...ranItems.map((item) => `${item.id}${item.isCurrent ? ' (current)' : ''}`), 'Latest Delta'];
+  const separator = headers.map(() => '---');
+
+  const currentItem = ranItems.find((item) => item.isCurrent) || ranItems[ranItems.length - 1];
+
+  const makeRow = (label, valueExtractor, deltaExtractor) => {
+    const vals = ranItems.map((item) => valueExtractor(item));
+    const deltaVal = deltaExtractor(currentItem);
+    return `| ${label} | ${vals.join(' | ')} | ${deltaVal} |`;
+  };
+
+  const rows = [];
+  rows.push(makeRow('Overall Score',
+    (item) => item.score !== null ? `${item.score}/100` : 'N/A',
+    (item) => formatDelta(item.deltas?.score)
+  ));
+  rows.push(makeRow('Rule Pass Rate',
+    (item) => item.rulePassRate !== null ? `${item.rulePassRate}%` : 'N/A',
+    (item) => formatDelta(item.deltas?.rulePassRate, true)
+  ));
+  rows.push(makeRow('Commits',
+    (item) => item.counts?.commits !== undefined && item.counts?.commits !== null ? String(item.counts.commits) : '-',
+    (item) => formatDelta(item.deltas?.counts?.commits)
+  ));
+  rows.push(makeRow('Pull Requests',
+    (item) => item.counts?.pulls !== undefined && item.counts?.pulls !== null ? String(item.counts.pulls) : '-',
+    (item) => formatDelta(item.deltas?.counts?.pulls)
+  ));
+  rows.push(makeRow('Issues',
+    (item) => item.counts?.issues !== undefined && item.counts?.issues !== null ? String(item.counts.issues) : '-',
+    (item) => formatDelta(item.deltas?.counts?.issues)
+  ));
+  rows.push(makeRow('Releases',
+    (item) => item.counts?.releases !== undefined && item.counts?.releases !== null ? String(item.counts.releases) : '-',
+    (item) => formatDelta(item.deltas?.counts?.releases)
+  ));
+
+  const hasCommunity = ranItems.some((item) => item.community && (item.community.stars !== null || item.community.contributors !== null));
+  if (hasCommunity) {
+    rows.push(makeRow('Stars',
+      (item) => item.community?.stars !== null && item.community?.stars !== undefined ? String(item.community.stars) : '-',
+      (item) => formatDelta(item.deltas?.community?.stars)
+    ));
+    rows.push(makeRow('Forks',
+      (item) => item.community?.forks !== null && item.community?.forks !== undefined ? String(item.community.forks) : '-',
+      (item) => formatDelta(item.deltas?.community?.forks)
+    ));
+    rows.push(makeRow('Contributors',
+      (item) => item.community?.contributors !== null && item.community?.contributors !== undefined ? String(item.community.contributors) : '-',
+      (item) => formatDelta(item.deltas?.community?.contributors)
+    ));
+  }
+
+  return `\n## Cross-Phase Progress Comparison\n` +
+    `| ${headers.join(' | ')} |\n` +
+    `| ${separator.join(' | ')} |\n` +
+    rows.join('\n') + '\n';
+}
+
 function buildReport({
   repo,
   milestone,
   phase,
   dependencyWarnings = [],
+  timeline = [],
   since,
   profile,
   providers,
@@ -271,6 +358,8 @@ function buildReport({
     `- Releases counted: ${counts.releases}\n` +
     truncationSection +
     formatDependencyWarningsSection(dependencyWarnings) +
+    formatTimelineSection(timeline) +
+    formatComparisonSection(timeline) +
     errorSection +
     `\n## Evidence Links (sample)\n` +
     `### Commits\n${listOrNone(links.commits)}` +
@@ -289,6 +378,7 @@ function buildJsonReport({
   milestone,
   phase,
   dependencyWarnings = [],
+  timeline = [],
   sinceIso,
   profile,
   providers,
@@ -313,6 +403,7 @@ function buildJsonReport({
     milestone,
     phase: phase || null,
     dependencyWarnings: dependencyWarnings || [],
+    timeline: timeline || [],
     profile: profile || null,
     providers,
     since: sinceIso,
@@ -360,6 +451,8 @@ export async function runMilestoneCheck({
   phase,
   dependencyWarnings = [],
   phaseJsonOut,
+  reportsDir = 'reports',
+  milestones: milestonesConfig,
   rulesFile,
   profile,
   providers: providersArg,
@@ -432,11 +525,29 @@ export async function runMilestoneCheck({
   const communityTrend = computeTrend(communityHealth, previousSnapshot?.communityHealth);
   const communityHealthMarkdown = formatCommunityHealthMarkdown(communityHealth, communityTrend);
 
+  const currentPhasePayload = {
+    repo,
+    phase: phase || null,
+    score,
+    status,
+    generatedAt: new Date().toISOString(),
+    rulePassRate: ruleEval.passRate,
+    evidenceCounts: counts,
+    communityHealth
+  };
+  const timeline = await loadPhaseTimelineData({
+    reportsDir,
+    repo,
+    currentPhasePayload,
+    milestonesConfig
+  });
+
   const report = buildReport({
     repo,
     milestone,
     phase,
     dependencyWarnings,
+    timeline,
     profile,
     providers: providerNames,
     since: sinceIso,
@@ -464,6 +575,7 @@ export async function runMilestoneCheck({
     milestone,
     phase,
     dependencyWarnings,
+    timeline,
     profile,
     providers: providerNames,
     sinceIso,
@@ -509,7 +621,8 @@ export async function runMilestoneCheck({
     summary: `[${status}] ${repo} milestone score ${score}/100 (activity:${activityScore} rules:${ruleEval.passRate}% commits:${counts.commits} prs:${counts.pulls} issues:${counts.issues} releases:${counts.releases})`,
     reportPath,
     jsonReportPath,
-    htmlReportPath
+    htmlReportPath,
+    payload
   };
 }
 

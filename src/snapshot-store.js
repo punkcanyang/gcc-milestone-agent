@@ -1,3 +1,11 @@
+/**
+ * __ai_context__
+ * 模組角色：指標歷史快照儲存模組
+ * 系統位置：milestone-check.js → [本模組]
+ * 核心職責：
+ *   1. 將每次評估的 score、status、counts 和 communityHealth 指標寫入本地快照 JSON 檔案中
+ *   2. 讀取之前的快照，以提供趨勢對比
+ */
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
@@ -35,3 +43,16 @@ export async function loadPreviousSnapshot(repo) {
     return null;
   }
 }
+
+/**
+ * [For Future AI]
+ * 1. 關鍵假設：
+ *    - 快照資料夾 `.gcc-milestone/snapshots/` 在當前工作目錄(CWD)下且被 git 忽略。
+ *    - 檔名由 repo 的 owner/name 正規化生成，例如 `octocat_hello-world.json`。
+ * 2. 潛在邊界情況：
+ *    - 讀取時如果檔案不存在或格式不合法的 JSON，會安靜返回 null 而不崩潰。
+ * 3. 模組依賴：
+ *    - node:fs/promises
+ *    - node:path
+ */
+

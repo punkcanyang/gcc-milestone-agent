@@ -124,6 +124,8 @@ node src/cli.js --phase M2
 
 Phase mode is opt-in. Without `--phase`, the CLI keeps the old single `--milestone` behavior. Dependency checks scan `reportsDir` for prior phase JSON reports. Missing or `not_met` dependencies produce warnings but do not block the run.
 
+When phase mode is active, the CLI automatically scans historical reports in `reportsDir` and compiles a **Phase Progress Timeline**. If `milestones` configuration is provided, it arranges them in order, dedupes them keeping the latest attempt, and includes pending phases. This timeline table is displayed in the Markdown report and rendered as a horizontal visual timeline with status-colored badges and a pulsing aura animation for the current phase in the HTML report.
+
 When phase mode is active, missing output paths default to timestamped files in `reportsDir`:
 
 ```text
@@ -205,6 +207,7 @@ npm run demo:html
 - ✅ Discord Invite API for seamless community metrics
 - ✅ Unit/integration tests passing via `npm test`
 - ✅ Phase-based milestone definitions via `.gcc-milestone.yaml` and `--phase`
+- ✅ Phase progress timeline visualization in Markdown and HTML reports
 - ⚠️ LLM mode is assistive and still requires human final review
 
 ## Next milestones

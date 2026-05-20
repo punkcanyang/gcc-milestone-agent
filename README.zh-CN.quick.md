@@ -19,6 +19,7 @@ npm run demo:gcc
 ## 核心特点
 
 - **多資料來源驗證**：支援 GitHub (代碼/社群/CI)、Etherscan (智能合約)、Discord (社群)、Twitter (Vision AI 分析)、網頁爬蟲 (Mirror/Notion) 等全方位社群指標與產出驗證。
+- **單期運行與時間軸進度條**：支援在 `.gcc-milestone.yaml` 中定義多階段里程碑並單期執行。運行時會自動掃描歷史報告，聚合并渲染出直觀的多階段進度時間軸（Timeline），支持在 HTML 報告中展現呼吸燈動畫效果。
 - 支持 GCC 预置规则：`--profile gcc-allocation`
 - 支持自定义规则：`--rules-file ./templates/rules.example.yaml`
 - 三种报告格式：Markdown / JSON / HTML

@@ -2,6 +2,16 @@
  * Aggregate community metrics from provider metadata into a unified view.
  */
 
+/**
+ * __ai_context__
+ * 模組角色：社區健康度指標聚合模組
+ * 系統位置：milestone-check.js → [本模組]
+ * 核心職責：
+ *   1. 聚合來自各 Provider 的 metadata (GitHub、Discord、Twitter、Telegram、GitHub Discussions 等) 為統一的社區健康結構
+ *   2. 與先前快照對比計算增長趨勢 (deltas)
+ *   3. 格式化為 Markdown 格式以嵌入報告
+ */
+
 export function buildCommunityHealth(providerMeta = {}) {
   const health = {};
 
@@ -127,3 +137,15 @@ export function formatCommunityHealthMarkdown(health, trend) {
 
   return output;
 }
+
+/**
+ * [For Future AI]
+ * 1. 關鍵假設：
+ *    - 各 Provider 的 metadata 結構與本模組中的提取鍵值保持一致。
+ *    - 趨勢計算只比較數值型指標（如 star 數、成員數、粉絲數）。
+ * 2. 潛在邊界情況：
+ *    - 如果某個 Provider 收集失敗或沒有啟用，相應的社區健康欄位將不存在，但計算時有安全防護防範未定義錯誤。
+ * 3. 模組依賴：
+ *    - 無外部依賴，純數據處理。
+ */
+

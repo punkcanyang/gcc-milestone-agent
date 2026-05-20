@@ -7,6 +7,7 @@ import {
   detectDependencyWarnings,
   resolvePhaseOutputPaths,
   formatPhaseTimestamp,
+  loadPhaseTimelineData,
   _internal
 } from '../src/phase-reports.js';
 
@@ -252,4 +253,129 @@ test('phase report internals expose slug, timestamp, generatedAt, and candidate 
     { file: 'c.json', time: 200 }
   ].sort(_internal.compareCandidates);
   assert.deepEqual(candidates.map((candidate) => candidate.file), ['c.json', 'a.json', 'b.json']);
+});
+
+test('loadPhaseTimelineData loads historical phase results in order, deduping and applying current run', async () => {
+  const reportsDir = makeTempDir();
+  // M1 has historical report
+  writeJson(path.join(reportsDir, 'm1.json'), reportPayload({
+    phase: { id: 'M1', title: 'Phase One' },
+    score: 80,
+    status: 'met',
+    generatedAt: '2026-05-14T01:00:00.000Z',
+    rulePassRate: 70,
+    evidenceCounts: { commits: 10, pulls: 2, issues: 1, releases: 0 },
+    communityHealth: {
+      github: { stars: 10, forks: 2, contributors: 1 }
+    }
+  }));
+  // M2 has older historical report, but current run will overwrite it
+  writeJson(path.join(reportsDir, 'm2-old.json'), reportPayload({
+    phase: { id: 'M2', title: 'Phase Two' },
+    score: 30,
+    status: 'not_met',
+    generatedAt: '2026-05-14T02:00:00.000Z',
+    rulePassRate: 20
+  }));
+
+  const currentPhasePayload = {
+    repo: 'owner/name',
+    phase: 'M2',
+    score: 90,
+    status: 'met',
+    generatedAt: '2026-05-14T03:00:00.000Z',
+    rulePassRate: 85,
+    evidenceCounts: { commits: 15, pulls: 3, issues: 2, releases: 1 },
+    communityHealth: {
+      github: { stars: 12, forks: 3, contributors: 2 }
+    }
+  };
+
+  const milestonesConfig = [
+    { id: 'M1', title: 'Phase One', dependsOn: [] },
+    { id: 'M2', title: 'Phase Two', dependsOn: ['M1'] },
+    { id: 'M3', title: 'Phase Three', dependsOn: ['M2'] }
+  ];
+
+  const timeline = await loadPhaseTimelineData({
+    reportsDir,
+    repo: 'owner/name',
+    currentPhasePayload,
+    milestonesConfig
+  });
+
+  assert.equal(timeline.length, 3);
+  
+  // M1: met, 80 score, from history
+  assert.deepEqual(timeline[0], {
+    id: 'M1',
+    title: 'Phase One',
+    score: 80,
+    status: 'met',
+    generatedAt: '2026-05-14T01:00:00.000Z',
+    isCurrent: false,
+    rulePassRate: 70,
+    counts: { commits: 10, pulls: 2, issues: 1, releases: 0 },
+    community: { stars: 10, forks: 2, contributors: 1 },
+    deltas: null
+  });
+
+  // M2: met, 90 score, updated by current run
+  assert.deepEqual(timeline[1], {
+    id: 'M2',
+    title: 'Phase Two',
+    score: 90,
+    status: 'met',
+    generatedAt: '2026-05-14T03:00:00.000Z',
+    isCurrent: true,
+    rulePassRate: 85,
+    counts: { commits: 15, pulls: 3, issues: 2, releases: 1 },
+    community: { stars: 12, forks: 3, contributors: 2 },
+    deltas: {
+      score: 10,
+      rulePassRate: 15,
+      counts: { commits: 5, pulls: 1, issues: 1, releases: 1 },
+      community: { stars: 2, forks: 1, contributors: 1 }
+    }
+  });
+
+  // M3: pending, null score, config placeholder
+  assert.deepEqual(timeline[2], {
+    id: 'M3',
+    title: 'Phase Three',
+    score: null,
+    status: 'pending',
+    generatedAt: null,
+    isCurrent: false,
+    rulePassRate: null,
+    counts: null,
+    community: null,
+    deltas: null
+  });
+});
+
+test('loadPhaseTimelineData orders by generatedAt time if no config is provided', async () => {
+  const reportsDir = makeTempDir();
+  writeJson(path.join(reportsDir, 'm2.json'), reportPayload({
+    phase: { id: 'M2', title: 'P2' },
+    score: 50,
+    status: 'partially_met',
+    generatedAt: '2026-05-14T02:00:00.000Z'
+  }));
+  writeJson(path.join(reportsDir, 'm1.json'), reportPayload({
+    phase: { id: 'M1', title: 'P1' },
+    score: 80,
+    status: 'met',
+    generatedAt: '2026-05-14T01:00:00.000Z'
+  }));
+
+  const timeline = await loadPhaseTimelineData({
+    reportsDir,
+    repo: 'owner/name'
+  });
+
+  assert.equal(timeline.length, 2);
+  // Ordered by generatedAt ascending (M1 then M2)
+  assert.equal(timeline[0].id, 'M1');
+  assert.equal(timeline[1].id, 'M2');
 });

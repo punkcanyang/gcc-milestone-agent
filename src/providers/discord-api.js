@@ -84,7 +84,9 @@ const discordApiProvider = {
                 },
                 links,
                 metadata: {
-                    discordServers: 1
+                    discordServers: 1,
+                    memberCount,
+                    onlineCount
                 }
             };
         } catch (error) {

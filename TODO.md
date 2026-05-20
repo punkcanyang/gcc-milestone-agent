@@ -32,11 +32,11 @@
 ### 多期驗收支持
 - [x] 支援 milestone 分期定義（M1 → M2 → M3）
 - [ ] 跨期進度對比報告
-- [ ] 時間軸視圖（Timeline visualization in HTML report）
+- [x] 時間軸視圖（Timeline visualization in HTML report）
 
-### 多項目批量驗收
-- [ ] 批量模式 CLI（從 YAML/JSON 批量讀取多個 repo+milestone 配置）
-- [ ] 聚合儀表板（所有被審核項目的概覽報告）
+### 多项目批量验收
+- [x] 批量模式 CLI（从 YAML/JSON 批量读取多个 repo+milestone 配置）
+- [x] 聚合仪表板（所有被审核项目的概览报告）
 
 ---
 

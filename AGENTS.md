@@ -1,5 +1,9 @@
 # AGENTS.md — gcc-milestone-agent
 
+## Principles
+
+- 使用 `trash` 命令而不是 `rm`，以便恢复误删文件。
+
 ## Stack
 
 - Node >=18 ESM (`"type": "module"`), CI runs Node 22

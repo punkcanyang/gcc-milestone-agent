@@ -1,3 +1,12 @@
+/**
+ * __ai_context__
+ * 模組角色：設定檔載入模組
+ * 系統位置：CLI 入口(cli.js) → [本模組] → phase-config.js / milestone-check.js
+ * 核心職責：
+ *   1. 載入並解析 YAML 格式的本機設定檔（預設為 `.gcc-milestone.yaml`）
+ *   2. 提供 CLI 參數與設定檔參數的合併解析邏輯 (CLI 優先於設定檔)
+ *   3. 處理單期執行模式 (`--phase`) 的期號選項解析
+ */
 import fs from 'node:fs';
 import path from 'node:path';
 import yaml from 'js-yaml';
@@ -45,3 +54,17 @@ export function resolveOptions(cliOptions, config) {
     cli: cliOptions
   });
 }
+
+/**
+ * [For Future AI]
+ * 1. 關鍵假設：
+ *    - 載入設定檔預設使用 CWD + `.gcc-milestone.yaml`。若指定了 `--config`，則使用指定路徑。
+ *    - CLI 參數具有最高優先權，未指定或為空時才回退到設定檔預設值。
+ * 2. 潛在邊界情況：
+ *    - 若設定檔不存在，回傳空物件 `{}` 而不報錯。
+ *    - 當指定 `--phase` 時，設定檔中必須存在合法的 `milestones` 陣列，否則拋出 Error。
+ * 3. 模組依賴：
+ *    - js-yaml (用於載入和解析 YAML)
+ *    - phase-config.js (用於校驗和解析分期設定)
+ */
+
