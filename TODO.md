@@ -31,7 +31,7 @@
 
 ### 多期驗收支持
 - [x] 支援 milestone 分期定義（M1 → M2 → M3）
-- [ ] 跨期進度對比報告
+- [x] 跨期進度對比報告
 - [x] 時間軸視圖（Timeline visualization in HTML report）
 
 ### 多项目批量验收
