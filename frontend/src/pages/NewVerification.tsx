@@ -6,8 +6,9 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
 import { Badge } from "../components/ui/badge";
-import { PlayCircle, Loader2, CheckCircle2, XCircle, FolderKanban, Info } from "lucide-react";
+import { PlayCircle, Loader2, CheckCircle2, XCircle, FolderKanban, Info, Terminal } from "lucide-react";
 import { useStore } from "../lib/store";
+import VerificationConsole from "../components/VerificationConsole";
 import type { VerificationRequest } from "../lib/types";
 
 export default function NewVerification() {
@@ -23,6 +24,7 @@ export default function NewVerification() {
   const [useManagedProject, setUseManagedProject] = useState(true);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const [selectedPhaseId, setSelectedPhaseId] = useState<string>("");
+  const [isConsoleOpen, setIsConsoleOpen] = useState(false);
 
   const [form, setForm] = useState<VerificationRequest>({
     repo: "",
@@ -97,6 +99,7 @@ export default function NewVerification() {
     const projId = useManagedProject && selectedProjectId ? selectedProjectId : undefined;
     const phId = useManagedProject && selectedPhaseId ? selectedPhaseId : undefined;
 
+    setIsConsoleOpen(true);
     const result = await runVerification(requestParams, projId, phId);
 
     if (result.success) {
@@ -328,6 +331,18 @@ export default function NewVerification() {
           )}
         </div>
       </div>
+      {/* Floating terminal toggle button */}
+      <div className="fixed bottom-6 right-6 z-40">
+        <Button
+          onClick={() => setIsConsoleOpen(!isConsoleOpen)}
+          className="h-12 w-12 rounded-full shadow-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 flex items-center justify-center text-primary"
+          title="Toggle Terminal Console"
+        >
+          <Terminal className="h-6 w-6" />
+        </Button>
+      </div>
+
+      <VerificationConsole isOpen={isConsoleOpen} onClose={() => setIsConsoleOpen(false)} />
     </div>
   );
 }

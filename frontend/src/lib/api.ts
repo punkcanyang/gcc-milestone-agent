@@ -116,3 +116,18 @@ export async function getProjectRuns(projectId: number): Promise<VerificationRun
   return invoke<VerificationRun[]>("get_project_runs", { projectId });
 }
 
+/**
+ * Backup SQLite database to a custom destination file path
+ */
+export async function backupDatabase(destPath: string): Promise<void> {
+  return invoke<void>("backup_database", { destPath });
+}
+
+/**
+ * Restore SQLite database from a backup file path
+ */
+export async function restoreDatabase(srcPath: string): Promise<void> {
+  return invoke<void>("restore_database", { srcPath });
+}
+
+

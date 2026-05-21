@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { listen } from "@tauri-apps/api/event";
 import type {
   ReportSummary,
   Report,
@@ -11,6 +12,7 @@ import type {
   VerificationRun,
 } from "./types";
 import * as api from "./api";
+
 
 interface AppState {
   // Reports
@@ -30,6 +32,10 @@ interface AppState {
   // Verification
   isRunning: boolean;
   lastResult: VerificationResult | null;
+  verificationLogs: { stream: "stdout" | "stderr"; line: string }[];
+  activeProjectId: number | null;
+  activePhaseId: string | null;
+  activePipelineProjectId: number | null;
 
   // Config
   config: AppConfig | null;
@@ -45,6 +51,8 @@ interface AppState {
   deleteReport: (id: string) => Promise<void>;
   loadConfig: () => Promise<void>;
   saveConfig: (config: AppConfig) => Promise<void>;
+  clearLogs: () => void;
+  runProjectPipeline: (projectId: number) => Promise<boolean>;
 
   // Project Actions
   loadProjects: () => Promise<void>;
@@ -67,6 +75,10 @@ export const useStore = create<AppState>((set, get) => ({
   isLoadingReport: false,
   isRunning: false,
   lastResult: null,
+  verificationLogs: [],
+  activeProjectId: null,
+  activePhaseId: null,
+  activePipelineProjectId: null,
   config: null,
 
   projects: [],
@@ -121,10 +133,15 @@ export const useStore = create<AppState>((set, get) => ({
     projectId?: number,
     phaseId?: string
   ) => {
-    set({ isRunning: true, lastResult: null });
+    set({
+      isRunning: true,
+      lastResult: null,
+      activeProjectId: projectId || null,
+      activePhaseId: phaseId || null,
+    });
     try {
       const result = await api.runVerification(request);
-      set({ isRunning: false, lastResult: result });
+      set({ lastResult: result });
 
       // Reload reports list
       if (result.success) {
@@ -160,8 +177,10 @@ export const useStore = create<AppState>((set, get) => ({
         summary: "",
         error: String(error),
       };
-      set({ isRunning: false, lastResult: result });
+      set({ lastResult: result });
       return result;
+    } finally {
+      set({ isRunning: false, activeProjectId: null, activePhaseId: null });
     }
   },
 
@@ -270,4 +289,128 @@ export const useStore = create<AppState>((set, get) => ({
       set({ isLoadingRuns: false });
     }
   },
+
+  // Clear verification logs
+  clearLogs: () => {
+    set({ verificationLogs: [] });
+  },
+
+  // Run the full milestone phases check pipeline (dependency-aware)
+  runProjectPipeline: async (projectId) => {
+    const project = get().projects.find((p) => p.project.id === projectId);
+    if (!project) {
+      console.error("Pipeline: Project not found", projectId);
+      return false;
+    }
+
+    const phases = project.phases;
+    if (phases.length === 0) {
+      console.log("Pipeline: No phases to run");
+      return true;
+    }
+
+    // Topological sorting for dependencies
+    const phaseMap = new Map<string, MilestonePhase>();
+    phases.forEach((p) => phaseMap.set(p.phase_id, p));
+
+    const inDegree = new Map<string, number>();
+    const adj = new Map<string, string[]>();
+
+    phases.forEach((p) => {
+      inDegree.set(p.phase_id, 0);
+      adj.set(p.phase_id, []);
+    });
+
+    phases.forEach((p) => {
+      let deps: string[] = [];
+      try {
+        deps = JSON.parse(p.depends_on || "[]");
+      } catch (e) {
+        deps = [];
+      }
+      deps.forEach((depId) => {
+        if (phaseMap.has(depId)) {
+          adj.get(depId)?.push(p.phase_id);
+          inDegree.set(p.phase_id, (inDegree.get(p.phase_id) || 0) + 1);
+        }
+      });
+    });
+
+    const queue: string[] = [];
+    inDegree.forEach((degree, phaseId) => {
+      if (degree === 0) {
+        queue.push(phaseId);
+      }
+    });
+
+    const order: string[] = [];
+    while (queue.length > 0) {
+      const u = queue.shift()!;
+      order.push(u);
+      adj.get(u)?.forEach((v) => {
+        inDegree.set(v, inDegree.get(v)! - 1);
+        if (inDegree.get(v) === 0) {
+          queue.push(v);
+        }
+      });
+    }
+
+    // Fallback if topological sort detects a cycle
+    const sortedPhases = order.length === phases.length
+      ? order.map((id) => phaseMap.get(id)!)
+      : [...phases].sort((a, b) => (a.id || 0) - (b.id || 0));
+
+    get().clearLogs();
+    set({ activePipelineProjectId: projectId });
+
+    try {
+      for (const phase of sortedPhases) {
+        console.log(`Pipeline: Running phase ${phase.phase_id}...`);
+        const request: VerificationRequest = {
+          repo: project.project.repo,
+          milestone: phase.title,
+          profile: phase.rules_profile || undefined,
+        };
+
+        // Set active verification phase so UI knows which one is currently running
+        const result = await get().runVerification(request, projectId, phase.phase_id);
+
+        if (!result.success) {
+          console.warn(`Pipeline: Phase ${phase.phase_id} execution failed. Terminating pipeline.`);
+          return false;
+        }
+
+        // Check the generated JSON to verify if criteria is met
+        if (result.json_path) {
+          try {
+            const reportData = await api.readReportJson(result.json_path);
+            if (reportData.status === "not_met" || reportData.score < 70) {
+              console.warn(
+                `Pipeline: Phase ${phase.phase_id} did not meet criteria (score: ${reportData.score}, status: ${reportData.status}). Terminating pipeline.`
+              );
+              return false;
+            }
+          } catch (readErr) {
+            console.error("Pipeline: Failed to parse report JSON to verify criteria", readErr);
+            return false;
+          }
+        }
+      }
+      return true;
+    } catch (e) {
+      console.error("Pipeline: Error during execution", e);
+      return false;
+    } finally {
+      set({ activePipelineProjectId: null });
+    }
+  },
 }));
+
+// Listen to verification logs globally via Tauri Event
+listen<{ stream: "stdout" | "stderr"; line: string }>("verification-log", (event) => {
+  const { payload } = event;
+  useStore.setState((state) => ({
+    verificationLogs: [...state.verificationLogs, payload],
+  }));
+});
+

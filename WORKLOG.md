@@ -1,5 +1,29 @@
 # WORKLOG - gcc-milestone-agent
 
+## 2026-05-21 Live Logs, Phase Pipelines & SQLite Backup/Restore (v0.6.1 桌面端功能增强)
+
+### 概要
+完成了桌面 UI 客户端的 v0.6.1 版本三合一功能增强开发与验证。本次更新包含多进程实时进度与日志广播、基于拓扑排序的多阶段里程碑流水线链式触发、本地 SQLite 数据库安全备份与防损坏覆盖还原。通过流式推送、前置熔断、连接重置三大核心机制保障了客户端的交互实时性、执行安全度及数据可靠性。
+
+### 变更清单
+- **多进程实时日志流推送 (Rust + React)**：
+  - Rust 端：将 `run_verification` 中的 `std::process::Command` 重构为异步 `tokio::process::Command`，启动后台任务通过 `BufReader` 异步按行读取 `stdout` 与 `stderr` 并通过 Tauri Event `verification-log` 广播到前端。
+  - 前端 Zustand：监听全局日志事件，将日志流推送入全局 `verificationLogs` 数组。
+  - 前端 UI：新增 `VerificationConsole.tsx` 日志控制台抽屉组件，实现日志等级与组件标识（如 `[github-api]`）动态高亮着色，支持自动滚屏、清空与一键复制。
+- **依赖感知的多阶段流水线链式触发 (React Dashboard)**：
+  - 算法实现：前端使用 DAG 拓扑排序算法，根据 phases 定义中的 `depends_on` 属性计算安全执行序列。
+  - 执行与熔断：在 `runProjectPipeline` 中串行触发阶段校验，并前置解析校验所生成的 JSON 报告，如果得分小于 70 或状态为 `not_met`，则执行优雅熔断，终止后续依赖阶段的运行。
+  - 界面增强：项目卡片增加“运行完整流水线”操作，阶段节点增加 Loading 等待动画和根据最新结果实时更新分值与颜色的效果。
+- **SQLite 数据库安全备份与恢复 (Rust + React Settings)**：
+  - Rust 安全防锁死机制：在 `restore_database` 覆盖还原数据库前，首先将活动连接重定向到 `:memory:` 临时内存库中，确保完全释放 SQLite 物理文件锁，防止数据损坏，拷贝覆盖后再重新初始化并打开数据库，注入 Tauri 管理的 `DbState`。
+  - 前端 UI 集成：在 Settings 页面中引入“系统数据维护”板块，调用 Tauri Dialog 插件触发原生保存/打开对话框，实现文件路径交互并触发备份和回滚恢复。
+- **项目测试与质量验证**：
+  - 在 `frontend/src-tauri` 运行 `cargo check`，Rust 后端编译成功，没有编译错误。
+  - 在 `frontend` 运行 `npm run build`，Vite + React 前端构建打包通过，TypeScript 类型无误。
+  - 在根目录下运行 `npm test`，核心 CLI 系统的 164 个测试用例 100% 通过。
+
+---
+
 ## 2026-05-20 SQLite-Backed Project & Multi-Phase Database Integration (方案 A / v0.6.0 前端底层)
 
 ### 概要

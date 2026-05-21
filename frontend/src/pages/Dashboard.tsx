@@ -1,16 +1,14 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
-import { LoadingPage } from "../components/ui/loading";
 import {
   BarChart3,
   CheckCircle2,
-  Clock,
   FileText,
   TrendingUp,
   Loader2,
@@ -19,9 +17,8 @@ import {
   Trash2,
   AlertTriangle,
   FolderKanban,
-  Settings,
-  ChevronRight,
   GitBranch,
+  Terminal,
 } from "lucide-react";
 import {
   LineChart,
@@ -37,7 +34,7 @@ import {
   Legend,
 } from "recharts";
 import { useStore } from "../lib/store";
-import type { MilestonePhase } from "../lib/types";
+import VerificationConsole from "../components/VerificationConsole";
 
 const COLORS = {
   met: "#22c55e",
@@ -55,7 +52,6 @@ interface PhaseForm {
 }
 
 export default function Dashboard() {
-  const navigate = useNavigate();
   const {
     projects,
     isLoadingProjects,
@@ -66,6 +62,10 @@ export default function Dashboard() {
     loadReports,
     runVerification,
     isRunning,
+    activeProjectId,
+    activePhaseId,
+    activePipelineProjectId,
+    runProjectPipeline,
   } = useStore();
 
   // Add Project Dialog State
@@ -74,6 +74,7 @@ export default function Dashboard() {
   const [projectRepo, setProjectRepo] = useState("");
   const [projectDesc, setProjectDesc] = useState("");
   const [projectConfig, setProjectConfig] = useState("");
+  const [isConsoleOpen, setIsConsoleOpen] = useState(false);
   
   // Dynamic phases for project creation
   const [phases, setPhases] = useState<PhaseForm[]>([
@@ -155,6 +156,7 @@ export default function Dashboard() {
   const handleQuickCheck = async (projectId: number, repo: string, phaseId: string, profile?: string) => {
     if (isRunning) return;
     setCheckingPhase({ projectId, phaseId });
+    setIsConsoleOpen(true);
 
     try {
       const result = await runVerification(
@@ -188,17 +190,6 @@ export default function Dashboard() {
   let partialRuns = 0;
   let failedRuns = 0;
   let totalScores = 0;
-
-  // Process timeline trends from all verification runs
-  const allRuns: { date: string; score: number }[] = [];
-
-  // Parse runs
-  projects.forEach((p) => {
-    // Re-check recent runs
-    // Currently, store runs are populated when a project is selected.
-    // For global charts, we can also extract metrics from CLI historical reports or selected runs.
-    // To ensure accuracy, we map current active reports as verification runs list.
-  });
 
   const parsedReports = reports.map((r) => {
     totalRuns += 1;
@@ -463,16 +454,46 @@ export default function Dashboard() {
                   <CardContent className="space-y-4">
                     {/* Horizontal Timeline Visualization */}
                     <div className="bg-accent/10 rounded-lg p-4 border border-border/50">
-                      <p className="text-xs font-semibold text-muted-foreground mb-3 flex items-center gap-1">
-                        <GitBranch className="h-3 w-3" />
-                        里程碑多期进展时间轴
-                      </p>
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
+                          <GitBranch className="h-3 w-3" />
+                          里程碑多期进展时间轴
+                        </p>
+                        <Button
+                          onClick={async () => {
+                            if (!proj.id) return;
+                            setIsConsoleOpen(true);
+                            const success = await runProjectPipeline(proj.id);
+                            if (success) {
+                              alert(`项目「${proj.name}」流水线全部阶段运行成功！`);
+                            } else {
+                              alert(`项目「${proj.name}」流水线运行中断或失败，请查看控制台日志。`);
+                            }
+                          }}
+                          disabled={isRunning}
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-[10px] px-2 gap-1 border border-primary/20 text-primary hover:bg-primary hover:text-primary-foreground transition-all"
+                        >
+                          {activePipelineProjectId === proj.id ? (
+                            <>
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                              流水线运行中...
+                            </>
+                          ) : (
+                            <>
+                              <Play className="h-3 w-3 fill-current" />
+                              运行完整流水线
+                            </>
+                          )}
+                        </Button>
+                      </div>
                       
                       <div className="relative flex items-center justify-between mt-6 px-4">
                         {/* Connecting Line */}
                         <div className="absolute top-1/2 left-0 w-full h-[2px] bg-border -translate-y-1/2 z-0" />
 
-                        {phasesList.map((ph, idx) => {
+                        {phasesList.map((ph) => {
                           // Find latest run for this phase on this repo
                           const phRun = repoRuns.find((r) => {
                             // If reports don't have phase object (old runs), matching is fallback
@@ -481,17 +502,19 @@ export default function Dashboard() {
                             return r.milestone.includes(`Phase ${ph.phase_id}`) || r.milestone.includes(ph.phase_id);
                           });
 
-                          const isChecking = checkingPhase?.projectId === proj.id && checkingPhase?.phaseId === ph.phase_id;
+                          const isChecking = (checkingPhase?.projectId === proj.id && checkingPhase?.phaseId === ph.phase_id) || (activeProjectId === proj.id && activePhaseId === ph.phase_id);
                           const statusColor = phRun ? COLORS[phRun.status] || COLORS.pending : COLORS.pending;
 
                           return (
                             <div key={ph.id} className="relative z-10 flex flex-col items-center">
                               {/* Phase Node Circle */}
                               <div 
-                                className="w-10 h-10 rounded-full border-2 bg-background flex items-center justify-center font-bold text-xs transition-all shadow-sm"
+                                className={`w-10 h-10 rounded-full border-2 bg-background flex items-center justify-center font-bold text-xs transition-all shadow-sm ${
+                                  isChecking ? "animate-pulse border-primary shadow-primary/20 scale-110" : ""
+                                }`}
                                 style={{ 
-                                  borderColor: statusColor,
-                                  color: phRun ? statusColor : "hsl(var(--muted-foreground))"
+                                  borderColor: isChecking ? undefined : statusColor,
+                                  color: isChecking ? "hsl(var(--primary))" : (phRun ? statusColor : "hsl(var(--muted-foreground))")
                                 }}
                                 title={`${ph.title} (${phRun ? phRun.status : "未校验"})`}
                               >
@@ -634,6 +657,18 @@ export default function Dashboard() {
           </Card>
         </div>
       )}
+      {/* Floating terminal toggle button */}
+      <div className="fixed bottom-6 right-6 z-40">
+        <Button
+          onClick={() => setIsConsoleOpen(!isConsoleOpen)}
+          className="h-12 w-12 rounded-full shadow-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 flex items-center justify-center text-primary"
+          title="Toggle Terminal Console"
+        >
+          <Terminal className="h-6 w-6" />
+        </Button>
+      </div>
+
+      <VerificationConsole isOpen={isConsoleOpen} onClose={() => setIsConsoleOpen(false)} />
     </div>
   );
 }

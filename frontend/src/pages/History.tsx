@@ -12,7 +12,6 @@ import {
   History as HistoryIcon,
   ExternalLink,
   Trash2,
-  Loader2,
   FileText,
 } from "lucide-react";
 import { useStore } from "../lib/store";

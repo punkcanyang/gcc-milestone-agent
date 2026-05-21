@@ -13,12 +13,17 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
+  Database,
+  Download,
+  Upload,
 } from "lucide-react";
+import { save as saveFileDialog, open as openFileDialog } from "@tauri-apps/plugin-dialog";
 import { useStore } from "../lib/store";
+import * as api from "../lib/api";
 import type { AppConfig } from "../lib/types";
 
 export default function SettingsPage() {
-  const { config, loadConfig, saveConfig } = useStore();
+  const { config, loadConfig, saveConfig, loadProjects } = useStore();
   const [form, setForm] = useState<AppConfig>({
     reports_dir: "reports",
     github_token: "",
@@ -50,6 +55,60 @@ export default function SettingsPage() {
       setIsSaving(false);
     }
   };
+
+  const [isDbBackuping, setIsDbBackuping] = useState(false);
+  const [isDbRestoring, setIsDbRestoring] = useState(false);
+
+  const handleBackupDb = async () => {
+    setIsDbBackuping(true);
+    try {
+      const destPath = await saveFileDialog({
+        filters: [{
+          name: "SQLite Database",
+          extensions: ["db"]
+        }],
+        defaultPath: "milestones_backup.db"
+      });
+      if (destPath) {
+        await api.backupDatabase(destPath);
+        alert("数据库备份导出成功！");
+      }
+    } catch (error) {
+      console.error("Backup DB failed:", error);
+      alert("数据库备份失败: " + String(error));
+    } finally {
+      setIsDbBackuping(false);
+    }
+  };
+
+  const handleRestoreDb = async () => {
+    setIsDbRestoring(true);
+    try {
+      const srcPath = await openFileDialog({
+        filters: [{
+          name: "SQLite Database",
+          extensions: ["db"]
+        }],
+        multiple: false
+      });
+      if (srcPath && typeof srcPath === "string") {
+        const confirmRestore = confirm(
+          "⚠️ 警告: 恢复备份将会覆盖当前的数据库文件，该操作不可逆，您的现有数据将会被全部替换！\n\n确定要继续吗？"
+        );
+        if (confirmRestore) {
+          await api.restoreDatabase(srcPath);
+          await loadProjects();
+          alert("数据库还原成功！");
+        }
+      }
+    } catch (error) {
+      console.error("Restore DB failed:", error);
+      alert("数据库还原失败: " + String(error));
+    } finally {
+      setIsDbRestoring(false);
+    }
+  };
+
 
   return (
     <div className="space-y-8">
@@ -137,6 +196,52 @@ export default function SettingsPage() {
             <p className="text-sm text-muted-foreground">
               Relative path for storing verification reports
             </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Database Maintenance */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Database className="h-5 w-5" />
+            Database Maintenance
+          </CardTitle>
+          <CardDescription>
+            Backup your projects data or restore from an existing database file
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            All your projects, milestone phases configuration, and historical runs are stored in a local SQLite database.
+          </p>
+          <div className="flex flex-wrap gap-4">
+            <Button
+              variant="outline"
+              onClick={handleBackupDb}
+              disabled={isDbBackuping}
+              className="flex items-center gap-2"
+            >
+              {isDbBackuping ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+              Backup Database
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleRestoreDb}
+              disabled={isDbRestoring}
+              className="flex items-center gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
+            >
+              {isDbRestoring ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Upload className="h-4 w-4" />
+              )}
+              Restore Backup
+            </Button>
           </div>
         </CardContent>
       </Card>

@@ -1,8 +1,16 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use std::process::Command;
-use tauri::Manager;
+use std::process::Stdio;
+use tokio::io::{AsyncBufReadExt, BufReader};
+use tauri::{Manager, Emitter};
+
+#[derive(Clone, Serialize)]
+struct LogPayload {
+    stream: String,
+    line: String,
+}
+
 
 /*
 __ai_context__
@@ -179,19 +187,59 @@ async fn run_verification(
         }
     }
 
-    // Execute the CLI command
-    let output = Command::new("node")
+    // Execute the CLI command asynchronously
+    let mut child = tokio::process::Command::new("node")
         .args(&args)
-        .output()
-        .map_err(|e| format!("Failed to execute CLI: {}", e))?;
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to spawn CLI: {}", e))?;
 
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    let stdout = child.stdout.take().ok_or("Failed to capture stdout")?;
+    let stderr = child.stderr.take().ok_or("Failed to capture stderr")?;
 
-    if output.status.success() {
+    let app_handle_stdout = app_handle.clone();
+    let stdout_task: tauri::async_runtime::JoinHandle<Vec<String>> = tauri::async_runtime::spawn(async move {
+        let mut reader = BufReader::new(stdout).lines();
+        let mut accum = Vec::new();
+        while let Ok(Some(line)) = reader.next_line().await {
+            let line_str: String = line;
+            let _ = app_handle_stdout.emit("verification-log", LogPayload {
+                stream: "stdout".to_string(),
+                line: line_str.clone(),
+            });
+            accum.push(line_str);
+        }
+        accum
+    });
+
+    let app_handle_stderr = app_handle.clone();
+    let stderr_task: tauri::async_runtime::JoinHandle<Vec<String>> = tauri::async_runtime::spawn(async move {
+        let mut reader = BufReader::new(stderr).lines();
+        let mut accum = Vec::new();
+        while let Ok(Some(line)) = reader.next_line().await {
+            let line_str: String = line;
+            let _ = app_handle_stderr.emit("verification-log", LogPayload {
+                stream: "stderr".to_string(),
+                line: line_str.clone(),
+            });
+            accum.push(line_str);
+        }
+        accum
+    });
+
+    let status = child.wait().await.map_err(|e| format!("Failed to wait for CLI: {}", e))?;
+
+    let stdout_lines = stdout_task.await.unwrap_or_default();
+    let stderr_lines = stderr_task.await.unwrap_or_default();
+
+    let stdout_content = stdout_lines.join("\n");
+    let stderr_content = stderr_lines.join("\n");
+
+    if status.success() {
         Ok(VerificationResult {
             success: true,
-            summary: stdout.trim().to_string(),
+            summary: stdout_content.trim().to_string(),
             report_path: Some(report_path.to_string_lossy().to_string()),
             json_path: Some(json_path.to_string_lossy().to_string()),
             html_path: Some(html_path.to_string_lossy().to_string()),
@@ -200,11 +248,11 @@ async fn run_verification(
     } else {
         Ok(VerificationResult {
             success: false,
-            summary: stdout.trim().to_string(),
+            summary: stdout_content.trim().to_string(),
             report_path: None,
             json_path: None,
             html_path: None,
-            error: Some(stderr),
+            error: Some(stderr_content),
         })
     }
 }
@@ -644,6 +692,67 @@ async fn get_project_runs(
     Ok(runs)
 }
 
+#[tauri::command]
+async fn backup_database(
+    dest_path: String,
+    app_handle: tauri::AppHandle,
+    db: tauri::State<'_, DbState>,
+) -> Result<(), String> {
+    let _lock = db.0.lock().map_err(|e| format!("Database lock error: {}", e))?;
+    
+    let app_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+        
+    let db_path = app_dir.join("milestones.db");
+    if !db_path.exists() {
+        return Err("Database file does not exist".to_string());
+    }
+    
+    fs::copy(&db_path, &dest_path)
+        .map_err(|e| format!("Failed to copy backup file: {}", e))?;
+        
+    Ok(())
+}
+
+#[tauri::command]
+async fn restore_database(
+    src_path: String,
+    app_handle: tauri::AppHandle,
+    db: tauri::State<'_, DbState>,
+) -> Result<(), String> {
+    let mut conn_guard = db.0.lock().map_err(|e| format!("Database lock error: {}", e))?;
+    
+    let app_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+        
+    let db_path = app_dir.join("milestones.db");
+    
+    // 1. Temporarily replace with an in-memory connection to drop the file lock
+    let mem_conn = rusqlite::Connection::open_in_memory()
+        .map_err(|e| format!("Failed to open memory database: {}", e))?;
+        
+    *conn_guard = mem_conn;
+    
+    // 2. Safely copy the backup file over the active DB file
+    fs::copy(&src_path, &db_path)
+        .map_err(|e| format!("Failed to copy source backup file: {}", e))?;
+        
+    // 3. Re-open the restored database file
+    let new_conn = rusqlite::Connection::open(&db_path)
+        .map_err(|e| format!("Failed to reopen database: {}", e))?;
+        
+    new_conn.execute("PRAGMA foreign_keys = ON", [])
+        .map_err(|e| format!("Failed to enable foreign keys: {}", e))?;
+        
+    *conn_guard = new_conn;
+    
+    Ok(())
+}
+
 fn find_cli_path(app_handle: &tauri::AppHandle) -> Result<PathBuf, String> {
     // Try to find the CLI script relative to the app
     let app_dir = app_handle
@@ -708,7 +817,10 @@ pub fn run() {
             delete_project,
             save_run_result,
             get_project_runs,
+            backup_database,
+            restore_database,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
