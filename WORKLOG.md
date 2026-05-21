@@ -1,5 +1,16 @@
 # WORKLOG - gcc-milestone-agent
 
+## 2026-05-21 TODO & DONE Document Consolidation (路线图与归档整理)
+
+### 概要
+对项目的 `TODO.md` 与 `DONE.md` 文件进行了全面整理。将已全部完成的 `v0.5.0` (多期验收与批量模式)、`v0.6.0` (桌面 UI 及 SQLite 存取通道)、`v0.6.1` (实时进度及备份维护) 的所有已实现子项进行勾选，并将它们归档至 `DONE.md`。在 `TODO.md` 中补充了未来的桌面端深度增强、离线 PDF 报告、规则引擎优化及 CI 自动化流水线集成等新 roadmap 规划。
+
+### 变更清单
+- **TODO 整理**：重构并精简了根目录下的 `TODO.md`，清理了历史已实现的繁杂条目，补充了后续的桌面端 UI 交互设计、多链/多语言支持以及 CI 自动化集成的代办事项。
+- **DONE 归档**：在 `DONE.md` 中完整归档了 `v0.5.0`、`v0.6.0` 与 `v0.6.1` 所实现的所有功能子项（包括 DAG 拓扑执行、物理锁安全释放、实时日志控制台等）。
+
+---
+
 ## 2026-05-21 Live Logs, Phase Pipelines & SQLite Backup/Restore (v0.6.1 桌面端功能增强)
 
 ### 概要
