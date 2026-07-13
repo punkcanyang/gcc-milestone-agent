@@ -35,6 +35,7 @@ import {
 } from "recharts";
 import { useStore } from "../lib/store";
 import VerificationConsole from "../components/VerificationConsole";
+import type { VerificationRequest } from "../lib/types";
 
 const COLORS = {
   met: "#22c55e",
@@ -66,6 +67,8 @@ export default function Dashboard() {
     activePhaseId,
     activePipelineProjectId,
     runProjectPipeline,
+    profiles,
+    loadProfiles,
   } = useStore();
 
   // Add Project Dialog State
@@ -87,7 +90,8 @@ export default function Dashboard() {
   useEffect(() => {
     loadProjects();
     loadReports();
-  }, [loadProjects, loadReports]);
+    loadProfiles();
+  }, [loadProjects, loadReports, loadProfiles]);
 
   const handleAddPhaseInput = () => {
     const nextNum = phases.length + 1;
@@ -158,14 +162,28 @@ export default function Dashboard() {
     setCheckingPhase({ projectId, phaseId });
     setIsConsoleOpen(true);
 
+    const profileSummary = profiles.find((p) => p.name === profile);
+    const request: VerificationRequest = {
+      repo,
+      milestone: `Verification for Phase ${phaseId}`,
+      providers: "github-api",
+    };
+
+    if (profileSummary) {
+      if (profileSummary.is_builtin) {
+        request.profile = profileSummary.name;
+      } else {
+        request.rules_file = profileSummary.file_path;
+      }
+    } else if (profile) {
+      request.profile = profile;
+    } else {
+      request.profile = "gcc-allocation";
+    }
+
     try {
       const result = await runVerification(
-        {
-          repo,
-          milestone: `Verification for Phase ${phaseId}`,
-          profile: profile || "gcc-allocation",
-          providers: "github-api",
-        },
+        request,
         projectId,
         phaseId
       );
@@ -333,13 +351,19 @@ export default function Dashboard() {
                         />
                       </div>
                       <div className="w-32">
-                        <Label className="text-xs text-muted-foreground">规则规则 profile</Label>
-                        <Input
+                        <Label className="text-xs text-muted-foreground">规则集 profile</Label>
+                        <select
                           value={p.rules_profile}
                           onChange={(e) => handlePhaseChange(idx, "rules_profile", e.target.value)}
-                          placeholder="gcc-allocation"
-                          className="h-8 text-xs"
-                        />
+                          className="flex h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <option value="">-- 选择规则集 --</option>
+                          {profiles.map((prof) => (
+                            <option key={prof.name} value={prof.name}>
+                              {prof.name} {prof.is_builtin ? "(内置)" : "(自定义)"}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                       {phases.length > 1 && (
                         <div className="pt-4">
@@ -674,10 +698,21 @@ export default function Dashboard() {
 }
 
 /*
-[For Future AI]
-Key Assumptions:
-1. `reports` (from global Zustand store) maps to historical verification reports loaded from the local reports JSON directory. We use this to compute average scores, status distributions, and recent audit scores.
-2. Under "Quick Check / Quick Audit" on each project phase node, we spawn the `runVerification` action, supplying the target repository, default profile, and passing down the specific `projectId` and `phaseId` to automatically register and log the run summary into SQLite database `verification_runs` table when execution finishes.
-3. Dependencies are modeled as strings representing JSON arrays (e.g., '["M1"]').
-4. Deleting a project utilizes SQLite foreign key cascaded deletes to wipe its phases and runs automatically.
+__ai_context__
+本组件为仪表盘主页面，用于展示当前项目列表、多期里程碑验证状态时间轴、总体合规性趋势及状态分布图。
+支持创建和删除列管项目，并集成了项目级多阶段依赖的自动化审计流水线与控制台日志输出。
+此外，本版本已接入规则集 profile 配置的选择器，用户可为每个里程碑阶段配置内置或自定义规则集。
 */
+
+// [For Future AI]
+// Key Assumptions:
+// 1. `reports` (from global Zustand store) maps to historical verification reports loaded from the local reports JSON directory. We use this to compute average scores, status distributions, and recent audit scores.
+// 2. Under "Quick Check / Quick Audit" on each project phase node, we spawn the `runVerification` action, supplying the target repository, default profile, and passing down the specific `projectId` and `phaseId` to automatically register and log the run summary into SQLite database `verification_runs` table when execution finishes.
+// 3. Dependencies are modeled as strings representing JSON arrays (e.g., '["M1"]').
+// 4. Deleting a project utilizes SQLite foreign key cascaded deletes to wipe its phases and runs automatically.
+// 5. Custom profiles name lookup: comparing `phase.rules_profile` or input `profile` against the loaded list in `profiles` state. If custom, passing physical absolute path as `rules_file`.
+// Potential Edge Cases:
+// - If the `profiles` list hasn't loaded or fails to load, `rules_profile` configuration falls back to the literal string passed to `profile`.
+// Dependencies:
+// - useStore (Zustand) for projects, reports, profiles, verification status, and IPC commands.
+// - VerificationConsole for output logging.

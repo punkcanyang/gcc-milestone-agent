@@ -20,6 +20,7 @@ const MIN_KEYWORD_LENGTH = 2;
 const EXPLAIN_SNIPPET_MAX = 180;
 const EXPLAIN_CONTEXT_BEFORE = 40;
 const EXPLAIN_CONTEXT_AFTER = 120;
+const PASSING_SEMANTIC_VERDICTS = new Set(['met']);
 
 function normalizeKeyword(word) {
   return word
@@ -110,9 +111,49 @@ function buildExplainabilitySnippet(item, matchedKeywords) {
   return `${prefix}${normalized.slice(start, end).trim()}${suffix}`;
 }
 
+function isRulePassed(result) {
+  return PASSING_SEMANTIC_VERDICTS.has(result?.semantic?.verdict);
+}
+
+function normalizeRuleResult(result) {
+  const keywordMatched = Boolean(result?.keywordMatched ?? result?.matched);
+  const passed = isRulePassed(result);
+  return {
+    ...result,
+    keywordMatched,
+    passed,
+    // WHY: `matched` is kept as a legacy pass alias; raw keyword hits live in `keywordMatched`.
+    matched: passed
+  };
+}
+
+export function recalculateRuleEval(ruleEval) {
+  const rules = (Array.isArray(ruleEval?.rules) ? ruleEval.rules : []).map((rule) => ({
+    ...rule,
+    result: normalizeRuleResult(rule.result || {})
+  }));
+  const total = rules.length;
+  const passed = rules.filter((rule) => rule.result.passed).length;
+  const passRate = total ? Math.round((passed / total) * 100) : 0;
+
+  return {
+    ...ruleEval,
+    rules,
+    passRate,
+    passed,
+    total
+  };
+}
+
 function matchRule(rule, evidenceItems) {
   if (!rule.keywords.length) {
-    return { matched: false, hitCount: 0, sampleLinks: [], explainability: [] };
+    return normalizeRuleResult({
+      keywordMatched: false,
+      hitCount: 0,
+      sampleLinks: [],
+      explainability: [],
+      semantic: evaluateSemanticVerdict(rule, [])
+    });
   }
 
   // WHY: 若規則指定 source，僅在該 provider 的證據中匹配
@@ -141,13 +182,13 @@ function matchRule(rule, evidenceItems) {
     matchedKeywords: h.matchedKeywords,
     snippet: h.snippet
   }));
-  return {
-    matched: hits.length > 0,
+  return normalizeRuleResult({
+    keywordMatched: hits.length > 0,
     hitCount: hits.length,
     sampleLinks,
     explainability,
     semantic: evaluateSemanticVerdict(rule, hits)
-  };
+  });
 }
 
 export function evaluateMilestoneRules(milestoneText, evidenceItems, externalRules = null) {
@@ -164,11 +205,7 @@ export function evaluateMilestoneRules(milestoneText, evidenceItems, externalRul
     result: matchRule(rule, evidenceItems)
   }));
 
-  const passed = evaluated.filter((r) => r.result.matched).length;
-  const total = evaluated.length;
-  const passRate = total ? Math.round((passed / total) * 100) : 0;
-
-  return { rules: evaluated, passRate, passed, total };
+  return recalculateRuleEval({ rules: evaluated });
 }
 
 export const _internal = {
@@ -177,6 +214,8 @@ export const _internal = {
   normalizeKeyword,
   normalizeRuleSource,
   buildExplainabilitySnippet,
+  isRulePassed,
+  recalculateRuleEval,
   MIN_KEYWORD_LENGTH
 };
 
@@ -184,7 +223,7 @@ export const _internal = {
  * [For Future AI]
  * 1. 關鍵假設：
  *    - Milestone 文本使用逗號/分號/換行/and/| 分隔多條規則
- *    - 關鍵字匹配為 case-insensitive 的子字串包含（非精確匹配）
+ *    - 關鍵字匹配為 case-insensitive 的子字串包含（非精確匹配），但通過狀態以 semantic verdict 為準
  *    - MIN_KEYWORD_LENGTH = 2 適用於中英文混合場景
  * 2. 潛在邊界情況：
  *    - 單行 milestone text 無分隔符時，整體視為一條規則

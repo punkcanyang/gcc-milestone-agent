@@ -1,5 +1,63 @@
 # WORKLOG - gcc-milestone-agent
 
+## 2026-05-24 Milestone Report PDF Export Support (里程碑报告 PDF 格式物理导出/方案一)
+
+### 概要
+完成了里程碑验证报告的 A4 格式 PDF 一键导出功能。该功能在前端 ReportViewer 页面提供一键“Export PDF”原生另存为交互，并在后端利用已安装的 Playwright Chromium 引擎，以无损矢量方式静默渲染并导出 HTML 报告为高排版保真的 PDF。
+
+### 变更清单
+- **新增 HTML-to-PDF 后台工具脚本 (`src/html-to-pdf.js`)**：
+  - 编写了基于 Playwright Chromium headless 虚拟打印的轻量转换逻辑。
+  - 支持 A4 页面格式、20mm 上下左右页边距、以及强制 `printBackground: true`（保证报告背景配色的高保真还原）。
+- **优化 HTML 渲染模板的打印 CSS 样式 (`src/html-report.js`)**：
+  - 补充了 `@media print` 媒体查询，对打印状态进行了排版调优。
+  - 在规则评估过滤表单容器中加入了 `print-hidden` 类，在 PDF 导出时自动静默隐藏交互式过滤选择框。
+  - 对普通卡片及规则卡片（`.card`, `.rule-card`）配置了 `page-break-inside: avoid`，解决了 PDF 分页时文字或表格边框拦腰折断的问题。
+- **扩展 Rust 后端 API 通道 (`verifier.rs` & `lib.rs`)**：
+  - 在 `verifier.rs` 中实现了 `export_pdf_report` Tauri 指令。接收前端的 `report_id`（文件名）和物理保存路径，定位到 reports 目录下的 `.html` 报告文件，并在后台用异步子进程拉起 `node src/html-to-pdf.js <html_path> <dest_path>` 触发转换。
+  - 在主入口 `lib.rs` 的 `invoke_handler` 列表中挂载注册了该新命令。
+- **改造 React 前端与 Dialog 交互 (`api.ts` & `ReportViewer.tsx`)**：
+  - 在 `api.ts` 中完成了对 `export_pdf_report` 的 TypeScript 异步请求接口封装。
+  - 在 `ReportViewer.tsx` 详情页右上角新设了 “Export PDF” 按钮（使用 Lucide `Download` 图标），支持防高频重入的 Loading 状态。
+  - 点击时，调用 Tauri Dialog 插件的 `save` 对话框，获取用户指定的物理保存路径，从而触发后台 PDF 导出，完毕后弹出“PDF 报告导出成功”的全局提示。
+- **编译与单元测试质量关口**：
+  - 后端执行 `cargo check` 正常，前端执行 `npm run build` 打包通过。
+  - 核心 CLI 单元测试 `npm test` 所有 164 个用例全部顺利通过。
+
+---
+
+## 2026-05-21 Rust Backend Modular Refactoring (Rust 后端代码解耦重构/方案 A)
+
+### 概要
+为贯彻 "Modular Context Windows"（模块化上下文窗口）架构设计标准，将原本多达 1114 行的单体文件 `frontend/src-tauri/src/lib.rs` 进行了物理模块化解耦重构。将数据模型、数据库交互、规则集管理、异步进程校验和全局配置读取分别拆分至独立子模块中，极大地改善了代码的可读性，并使得后续 AI 代理的上下文检索和局部代码修改更加轻量、省 Token 且高内聚。
+
+### 变更清单
+- **数据库子模块化 (`src/db.rs`)**：
+  - 迁移 `Project`、`MilestonePhase`、`ProjectWithPhases` 和 `VerificationRun` 核心数据结构的声明。
+  - 迁移全局 Mutex 数据库状态持有者 `DbState` 以及表的创建逻辑 `init_db`。
+  - 迁移项目 CRUD 相关的 7 个 Tauri Commands（包括原子事务写入、级联删除、备份与释放物理文件锁以进行还原的数据库重置机制）。
+- **规则集子模块化 (`src/commands/profile.rs`)**：
+  - 迁移 `ProfileRule` 和 `ProfileSummary` 规则定义。
+  - 迁移 `list_profiles`、`save_profile`、`delete_profile` 等命令。
+  - 将内置规则集路径定位查找函数 `find_builtin_profile_path` 缩减为 profile 模块内私有，提升代码内聚。
+- **校验流与报告管理子模块化 (`src/commands/verifier.rs`)**：
+  - 迁移 `run_verification` 指令，负责用异步管道拉起 CLI 校验子进程，并流式向前端分发实时日志。
+  - 迁移校验报告的扫描列表、读取与删除的 IPC 命令（如 `list_reports` 等）。
+  - 将 CLI 执行文件物理定位查找函数 `find_cli_path` 收窄为该模块内私有。
+- **应用全局配置子模块化 (`src/commands/config.rs`)**：
+  - 迁移 `AppConfig` 数据结构以及 `get_app_config` / `save_app_config` 命令。
+- **子模块导出与主入口精简 (`src/commands/mod.rs` & `src/lib.rs`)**：
+  - 新建 `src/commands/mod.rs` 管理并公开所有子模块。
+  - `src/lib.rs` 瘦身至 80 行以内，仅负责引导 Tauri 基础生命周期、在 setup 中初始化数据库以及集中挂载注册解耦后的 20 个 Tauri IPC 命令路由。
+- **AI-First 规范全面覆盖**：
+  - 在每个新增和重构的 Rust 源文件头部插入 `__ai_context__` 上下文说明，并在文件尾部追加 `[For Future AI]` 关键假设与边界设计说明。
+- **构建与测试验证**：
+  - `cargo check` 编译顺利通过（修复了多行注释嵌套 `/*` 带来的编译器报错）。
+  - 前端执行 `npm run build`（tsc & vite build）完成打包，各 IPC 命令调用映射完全对应。
+  - 核心 CLI 单元测试 `npm test` 所有 164 个用例全部 100% 成功通过。
+
+---
+
 ## 2026-05-21 TODO & DONE Document Consolidation (路线图与归档整理)
 
 ### 概要
@@ -577,3 +635,43 @@ HTML 報告新增 Reviewer Dashboard 區塊，提供分數 KPI 與規則結論�
 | `test/milestone-check.test.js` | 更新 |
 | `README.md` | 更新 |
 | `TODO.md` | 更新 |
+
+---
+
+## 2026-05-21 规则集管理编辑、导入导出与自定义管理 (方案一)
+
+### 概要
+完成了规则集 (Rules Profile) 在线可视化编辑、导入导出与自定义管理功能开发。打通了 Tauri 后端 Rust 保存与校验映射、Zustand 全局状态、以及 NewVerification/Dashboard 等前端页面的全面对接。
+
+### 變更清單
+- `frontend/src-tauri/src/lib.rs` (修改)
+  - 定义了 `ProfileRule` 和 `ProfileSummary` 结构体，支持 Rust / TS 的序列化传递。
+  - 实现了 `list_profiles`、`save_profile`（防目录穿越安全限制）、`delete_profile`。
+  - 实现了 `rules_to_yaml` 与 `yaml_to_rules` 命令，使前端免依赖解析 YAML。
+  - 在 `main` 的 `generate_handler!` 注册以上 5 个新命令。
+- `frontend/src/lib/types.ts` (修改)
+  - 声明了 `ProfileRule` 和 `ProfileSummary` 接口。
+  - 在 `VerificationRequest` 结构中加入 `rules_file` 可选参数。
+- `frontend/src/lib/api.ts` (修改)
+  - 封装并暴露了 5 个 Tauri IPC 请求函数（`listProfiles`, `saveProfile`, `deleteProfile`, `rulesToYaml`, `yamlToRules`）。
+- `frontend/src/lib/store.ts` (修改)
+  - Zustand 接入 `profiles` 状态及 `loadProfiles`、`saveProfile`、`deleteProfile` 三个异步操作。
+  - 改造项目流水线运行逻辑 `runProjectPipeline`：如果是自定义 Profile 规则，则自动解析出物理绝对路径作为 `rules_file` 参数传给 CLI 运行。
+- `frontend/src/pages/Profiles.tsx` (新增)
+  - 实现全新的规则集可视化管理后台：支持左侧列表、规则 CRUD、触发词 Badge 管理、数据源下拉选择。
+  - 实现了 YAML 源码实时导入导出、一键拷贝及应用到编辑区的 Modal 弹窗。
+- `frontend/src/pages/NewVerification.tsx` (修改)
+  - 改造手工校验界面，将规则集输入文本框改为 `<select>` 选择器，支持下拉选择内置或自定义规则集，并自动映射物理路径。
+- `frontend/src/pages/Dashboard.tsx` (修改)
+  - 仪表盘新增 profiles 的加载和全局获取。
+  - 改造创建项目时的多阶段配置面板，将阶段的规则 profile 文本输入框改为下拉选择框。
+  - 改造单阶段“审计”触发逻辑 `handleQuickCheck`，自定义规则自动匹配对应的绝对路径并传给 `rules_file` 字段。
+- `frontend/src/components/Layout.tsx` (修改)
+  - 在侧边栏导航列表中挂载 Rules Profile 页面入口。
+- `frontend/src/App.tsx` (修改)
+  - 将 `/profiles` 路由映射到 `ProfilesPage` 组件。
+
+### 驗證
+- 前端打包编译：`npm run build` (tsc & vite build) 顺利通过，未引入任何外部第三方 YAML 解析包。
+- 后端编译：`cargo check` 通过。
+- 单元测试：`npm test` 164 passed, 0 failed.

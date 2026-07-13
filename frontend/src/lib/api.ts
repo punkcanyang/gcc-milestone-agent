@@ -9,6 +9,8 @@ import type {
   MilestonePhase,
   ProjectWithPhases,
   VerificationRun,
+  ProfileSummary,
+  ProfileRule,
 } from "./types";
 
 /**
@@ -50,6 +52,16 @@ export async function deleteReport(
   htmlPath?: string
 ): Promise<void> {
   return invoke<void>("delete_report", { reportPath, jsonPath, htmlPath });
+}
+
+/**
+ * Export a report as PDF
+ */
+export async function exportPdfReport(
+  reportId: string,
+  destPath: string
+): Promise<void> {
+  return invoke<void>("export_pdf_report", { reportId, destPath });
 }
 
 /**
@@ -130,4 +142,50 @@ export async function restoreDatabase(srcPath: string): Promise<void> {
   return invoke<void>("restore_database", { srcPath });
 }
 
+/**
+ * List all rules profiles (both builtin and custom)
+ */
+export async function listProfiles(): Promise<ProfileSummary[]> {
+  return invoke<ProfileSummary[]>("list_profiles");
+}
 
+/**
+ * Save a rules profile as a custom YAML file
+ */
+export async function saveProfile(name: string, rules: ProfileRule[]): Promise<string> {
+  return invoke<string>("save_profile", { name, rules });
+}
+
+/**
+ * Delete a custom rules profile
+ */
+export async function deleteProfile(name: string): Promise<void> {
+  return invoke<void>("delete_profile", { name });
+}
+
+/**
+ * Convert a list of rules to YAML string using Rust
+ */
+export async function rulesToYaml(rules: ProfileRule[]): Promise<string> {
+  return invoke<string>("rules_to_yaml", { rules });
+}
+
+/**
+ * Convert a YAML string to a list of rules using Rust
+ */
+export async function yamlToRules(yaml: string): Promise<ProfileRule[]> {
+  return invoke<ProfileRule[]>("yaml_to_rules", { yaml });
+}
+
+/*
+__ai_context__
+本模块负责前端 React 对接 Rust Tauri 后端的全量 IPC 接口包装，包括项目管理、历史运行、校验触发和新增的规则集管理功能。
+*/
+
+// [For Future AI]
+// 1. Key assumptions made:
+//    - listProfiles, saveProfile, and deleteProfile map directly to commands of the same snake_case names in Rust.
+// 2. Potential edge cases to watch:
+//    - deleteProfile will fail (Rust returns Err) if called for "gcc-allocation".
+// 3. Dependencies on other modules:
+//    - Invoked by Zustand store actions in store.ts.

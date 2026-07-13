@@ -9,6 +9,7 @@
  */
 
 import fs from 'node:fs';
+import { recalculateRuleEval } from './rule-engine.js';
 
 const OPENAI_RESPONSES_API = 'https://api.openai.com/v1/responses';
 const OPENAI_CHAT_API = 'https://api.openai.com/v1/chat/completions';
@@ -239,7 +240,7 @@ export async function applyLlmSemanticEvaluation(
     return {
       mode: 'heuristic',
       warnings: ['OPENAI_API_KEY not set; using heuristic semantic evaluation.'],
-      ruleEval
+      ruleEval: recalculateRuleEval(ruleEval)
     };
   }
 
@@ -285,10 +286,10 @@ export async function applyLlmSemanticEvaluation(
   return {
     mode: warnings.length === 0 ? 'llm' : 'llm_with_fallback',
     warnings,
-    ruleEval: {
+    ruleEval: recalculateRuleEval({
       ...ruleEval,
       rules: nextRules
-    }
+    })
   };
 }
 

@@ -5,6 +5,7 @@ export interface VerificationRequest {
   milestone: string;
   since?: string;
   profile?: string;
+  rules_file?: string;
   providers?: string;
   output_dir?: string;
 }
@@ -27,6 +28,7 @@ export interface ReportSummary {
   date: string;
   report_path: string;
   json_path?: string;
+  html_path?: string;
 }
 
 export interface EvidenceCounts {
@@ -47,6 +49,8 @@ export interface SemanticVerdict {
 
 export interface RuleResult {
   matched: boolean;
+  keywordMatched?: boolean;
+  passed?: boolean;
   hitCount: number;
   sampleLinks: { url: string; matchedKeywords: string[] }[];
   explainability: {
@@ -151,3 +155,31 @@ export interface VerificationRun {
   error_message?: string;
   generated_at: string;
 }
+
+export interface ProfileRule {
+  id: string;
+  text: string;
+  keywords: string[];
+  source?: string;
+}
+
+export interface ProfileSummary {
+  name: string;
+  is_builtin: boolean;
+  rules: ProfileRule[];
+  file_path?: string;
+}
+
+/*
+__ai_context__
+本文件定义了前端 React 所有的核心数据接口和模型类型，包含校验请求、报告详情、规则集定义等。
+*/
+
+// [For Future AI]
+// 1. Key assumptions made:
+//    - ProfileSummary.file_path contains the absolute physical path of custom profile YAMLs on the disk.
+//    - ProfileSummary.is_builtin distinguishes readonly builtin profiles from editable ones.
+// 2. Potential edge cases to watch:
+//    - VerificationRequest.rules_file may be omitted if we use builtin profiles.
+// 3. Dependencies on other modules:
+//    - Used directly by store.ts, api.ts and page components.

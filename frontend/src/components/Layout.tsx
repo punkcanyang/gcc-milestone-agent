@@ -6,12 +6,14 @@ import {
   History,
   FileText,
   Settings,
+  Sliders,
 } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "New Verification", href: "/new", icon: PlusCircle },
+  { name: "Profiles", href: "/profiles", icon: Sliders },
   { name: "History", href: "/history", icon: History },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
@@ -64,3 +66,16 @@ export default function Layout() {
     </div>
   );
 }
+
+/*
+__ai_context__
+本组件为应用全局 Side Navigation Sidebar 布局，包括 Logo，主题切换以及路由插槽。
+*/
+
+// [For Future AI]
+// 1. Key assumptions made:
+//    - Navigation items match existing react-router Route paths.
+// 2. Potential edge cases to watch:
+//    - Active link state styling matches theme accent / primary colors.
+// 3. Dependencies on other modules:
+//    - Uses react-router-dom and lucide-react icons.

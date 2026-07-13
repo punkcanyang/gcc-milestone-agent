@@ -97,4 +97,54 @@ test('applyLlmSemanticEvaluation overrides semantic verdict when llm succeeds', 
   assert.equal(out.ruleEval.rules[0].result.semantic.verdict, 'met');
   assert.equal(out.ruleEval.rules[0].result.semantic.confidence, 92);
   assert.equal(out.ruleEval.rules[0].result.semantic.method, 'llm');
+  assert.equal(out.ruleEval.passRate, 100);
+  assert.equal(out.ruleEval.passed, 1);
+  assert.equal(out.ruleEval.rules[0].result.passed, true);
+});
+
+test('applyLlmSemanticEvaluation recalculates passRate after not_met override', async () => {
+  const ruleEval = {
+    rules: [
+      {
+        id: 'R1',
+        text: 'Package is published to registry',
+        keywords: ['package', 'published', 'registry'],
+        result: {
+          matched: true,
+          keywordMatched: true,
+          passed: true,
+          semantic: { verdict: 'met', confidence: 90, rationale: 'heuristic' },
+          explainability: [{ source: 'npm-registry', snippet: 'package registry keywords were present', url: 'https://example.com/npm' }]
+        }
+      }
+    ],
+    passRate: 100,
+    passed: 1,
+    total: 1
+  };
+
+  const mockFetch = async () => ({
+    ok: true,
+    json: async () => ({
+      output_text: JSON.stringify({
+        verdict: 'not_met',
+        confidence: 94,
+        rationale: 'Evidence says the package is not actually published.'
+      })
+    })
+  });
+
+  const out = await applyLlmSemanticEvaluation(ruleEval, {
+    apiKey: 'test-key',
+    model: 'gpt-5-mini',
+    fetchImpl: mockFetch
+  });
+
+  assert.equal(out.mode, 'llm');
+  assert.equal(out.ruleEval.passRate, 0);
+  assert.equal(out.ruleEval.passed, 0);
+  assert.equal(out.ruleEval.rules[0].result.keywordMatched, true);
+  assert.equal(out.ruleEval.rules[0].result.passed, false);
+  assert.equal(out.ruleEval.rules[0].result.matched, false);
+  assert.equal(out.ruleEval.rules[0].result.semantic.verdict, 'not_met');
 });

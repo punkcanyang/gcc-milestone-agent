@@ -20,6 +20,31 @@ test('evaluateMilestoneRules matches evidence by keywords', () => {
   assert.equal(evalResult.total, 1);
   assert.equal(evalResult.passed, 1);
   assert.equal(evalResult.passRate, 100);
+  assert.equal(evalResult.rules[0].result.keywordMatched, true);
+  assert.equal(evalResult.rules[0].result.passed, true);
+});
+
+test('evaluateMilestoneRules keeps keyword hits separate from semantic pass state', () => {
+  const rules = [
+    {
+      id: 'R-Publish',
+      text: 'Package published registry release audit has public provenance',
+      keywords: ['published', 'registry', 'audit', 'release']
+    }
+  ];
+  const evalResult = evaluateMilestoneRules(
+    'ignored milestone text',
+    [{ title: 'published placeholder', body: 'No real delivery artifact is present.', url: 'https://example.com/npm' }],
+    rules
+  );
+
+  assert.equal(evalResult.total, 1);
+  assert.equal(evalResult.passed, 0);
+  assert.equal(evalResult.passRate, 0);
+  assert.equal(evalResult.rules[0].result.keywordMatched, true);
+  assert.equal(evalResult.rules[0].result.passed, false);
+  assert.equal(evalResult.rules[0].result.matched, false);
+  assert.equal(evalResult.rules[0].result.semantic.verdict, 'not_met');
 });
 
 test('loadRulesFromFile reads YAML rules', async () => {
@@ -71,6 +96,8 @@ test('evaluateMilestoneRules only matches evidence from the configured source', 
 
   assert.equal(evalResult.total, 1);
   assert.equal(evalResult.passed, 1);
+  assert.equal(evalResult.rules[0].result.keywordMatched, true);
+  assert.equal(evalResult.rules[0].result.passed, true);
   assert.equal(evalResult.rules[0].result.hitCount, 1);
   assert.equal(evalResult.rules[0].result.sampleLinks[0].url, 'https://example.com/b');
 });
@@ -95,6 +122,8 @@ test('evaluateMilestoneRules does not match when source filter excludes all evid
   assert.equal(evalResult.total, 1);
   assert.equal(evalResult.passed, 0);
   assert.equal(evalResult.rules[0].result.matched, false);
+  assert.equal(evalResult.rules[0].result.keywordMatched, false);
+  assert.equal(evalResult.rules[0].result.passed, false);
 });
 
 test('evaluateMilestoneRules includes explainability snippets for matched evidence', () => {

@@ -10,6 +10,8 @@ import type {
   MilestonePhase,
   ProjectWithPhases,
   VerificationRun,
+  ProfileSummary,
+  ProfileRule,
 } from "./types";
 import * as api from "./api";
 
@@ -40,6 +42,10 @@ interface AppState {
   // Config
   config: AppConfig | null;
 
+  // Profiles
+  profiles: ProfileSummary[];
+  isLoadingProfiles: boolean;
+
   // Actions
   loadReports: () => Promise<void>;
   loadReport: (id: string) => Promise<void>;
@@ -63,6 +69,11 @@ interface AppState {
   deleteProject: (id: number) => Promise<void>;
   setCurrentProject: (project: ProjectWithPhases | null) => void;
   loadProjectRuns: (projectId: number) => Promise<void>;
+
+  // Profile Actions
+  loadProfiles: () => Promise<void>;
+  saveProfile: (name: string, rules: ProfileRule[]) => Promise<string>;
+  deleteProfile: (name: string) => Promise<void>;
 }
 
 
@@ -86,6 +97,9 @@ export const useStore = create<AppState>((set, get) => ({
   projectRuns: [],
   isLoadingProjects: false,
   isLoadingRuns: false,
+
+  profiles: [],
+  isLoadingProfiles: false,
 
   // Load all reports
   loadReports: async () => {
@@ -197,7 +211,8 @@ export const useStore = create<AppState>((set, get) => ({
     try {
       await api.deleteReport(
         report.report_path,
-        report.json_path
+        report.json_path,
+        report.html_path
       );
 
       // Reload reports list
@@ -290,6 +305,41 @@ export const useStore = create<AppState>((set, get) => ({
     }
   },
 
+  // Load profiles
+  loadProfiles: async () => {
+    set({ isLoadingProfiles: true });
+    try {
+      const profiles = await api.listProfiles();
+      set({ profiles, isLoadingProfiles: false });
+    } catch (error) {
+      console.error("Failed to load profiles:", error);
+      set({ isLoadingProfiles: false });
+    }
+  },
+
+  // Save profile
+  saveProfile: async (name, rules) => {
+    try {
+      const path = await api.saveProfile(name, rules);
+      await get().loadProfiles();
+      return path;
+    } catch (error) {
+      console.error("Failed to save profile:", error);
+      throw error;
+    }
+  },
+
+  // Delete profile
+  deleteProfile: async (name) => {
+    try {
+      await api.deleteProfile(name);
+      await get().loadProfiles();
+    } catch (error) {
+      console.error("Failed to delete profile:", error);
+      throw error;
+    }
+  },
+
   // Clear verification logs
   clearLogs: () => {
     set({ verificationLogs: [] });
@@ -366,11 +416,21 @@ export const useStore = create<AppState>((set, get) => ({
     try {
       for (const phase of sortedPhases) {
         console.log(`Pipeline: Running phase ${phase.phase_id}...`);
+        const profileSummary = get().profiles.find((p) => p.name === phase.rules_profile);
         const request: VerificationRequest = {
           repo: project.project.repo,
           milestone: phase.title,
-          profile: phase.rules_profile || undefined,
         };
+
+        if (profileSummary) {
+          if (profileSummary.is_builtin) {
+            request.profile = profileSummary.name;
+          } else {
+            request.rules_file = profileSummary.file_path;
+          }
+        } else if (phase.rules_profile) {
+          request.profile = phase.rules_profile;
+        }
 
         // Set active verification phase so UI knows which one is currently running
         const result = await get().runVerification(request, projectId, phase.phase_id);
@@ -414,3 +474,18 @@ listen<{ stream: "stdout" | "stderr"; line: string }>("verification-log", (event
   }));
 });
 
+/*
+__ai_context__
+本模块使用 Zustand 进行全局状态管理，提供对报告历史、项目及阶段（Milestone Phase）、
+验证日志流、应用程序配置以及规则集（Rules Profile）的状态持有与 CRUD Actions 封装。
+*/
+
+// [For Future AI]
+// 1. Key assumptions made:
+//    - listProfiles returns builtin and custom rulesets. custom ones have is_builtin = false and file_path set to their path on disk.
+//    - runProjectPipeline resolves custom profiles by comparing phase.rules_profile with loaded profile names.
+// 2. Potential edge cases to watch:
+//    - If saveProfile or deleteProfile fails, an error is thrown, which must be caught by components.
+// 3. Dependencies on other modules:
+//    - Depends on api.ts for Tauri IPC wrapper invocations.
+//    - Listened events: verification-log.

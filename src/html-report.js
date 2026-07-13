@@ -318,6 +318,12 @@ export function renderHtmlReport(payload) {
     .comp-table th,.comp-table td{padding:10px 12px;border-bottom:1px solid #e5e7eb}
     .comp-table th{background-color:#f9fafb;font-weight:600;color:#374151}
     .comp-table tbody tr:last-child td{border-bottom:none}
+    @media print {
+      body { max-width: 100%; margin: 0; padding: 0; background: #fff; color: #000; }
+      .print-hidden { display: none !important; }
+      .card, .rule-card { page-break-inside: avoid; break-inside: avoid; }
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    }
   </style>
 </head>
 <body>
@@ -358,7 +364,7 @@ export function renderHtmlReport(payload) {
   </div>
 
   ${sectionTitle('Rule Evaluation')}
-  <div class="card">
+  <div class="card print-hidden">
     <label for="ruleVerdictFilter"><strong>Semantic verdict:</strong></label>
     <select id="ruleVerdictFilter" onchange="applyRuleFilters()">
       <option value="all">all</option>
@@ -375,7 +381,8 @@ export function renderHtmlReport(payload) {
   ${rules.map((r) => `
     <div class="card rule-card" data-semantic="${esc(r.result?.semantic?.verdict || 'n/a')}" data-source="${esc(r.source || '')}">
       <div><strong>${esc(r.id)}</strong> - ${esc(r.text)}</div>
-      <div>Keyword matched: <code>${esc(r.result?.matched ? 'yes' : 'no')}</code></div>
+      <div>Rule passed: <code>${esc((r.result?.passed ?? r.result?.matched) ? 'yes' : 'no')}</code></div>
+      <div>Keyword matched: <code>${esc((r.result?.keywordMatched ?? r.result?.matched) ? 'yes' : 'no')}</code></div>
       <div>Semantic: <code>${esc(r.result?.semantic?.verdict || 'n/a')}</code> / confidence <code>${esc(r.result?.semantic?.confidence ?? 'n/a')}</code></div>
       <div>Coverage: semantic <code>${esc(r.result?.semantic?.semanticCoverage ?? 'n/a')}%</code> / keyword <code>${esc(r.result?.semantic?.keywordCoverage ?? 'n/a')}%</code> / source diversity <code>${esc(r.result?.semantic?.sourceDiversity ?? 'n/a')}</code></div>
       <div>${esc(r.result?.semantic?.rationale || '')}</div>

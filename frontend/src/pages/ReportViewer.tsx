@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import {
   Card,
@@ -19,9 +19,13 @@ import {
   Tag,
   ArrowLeft,
   ExternalLink,
+  Download,
+  Loader2,
 } from "lucide-react";
 import { useStore } from "../lib/store";
 import { LoadingPage } from "../components/ui/loading";
+import { save as saveFileDialog } from "@tauri-apps/plugin-dialog";
+import * as api from "../lib/api";
 
 function StatusIcon({ status }: { status: string }) {
   switch (status) {
@@ -53,6 +57,31 @@ export default function ReportViewer() {
   const { id } = useParams<{ id: string }>();
   const { currentReport, currentReportMarkdown, isLoadingReport, loadReport } =
     useStore();
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+
+  const handleExportPdf = async () => {
+    if (!id) return;
+    setIsExportingPdf(true);
+    try {
+      const destPath = await saveFileDialog({
+        filters: [{
+          name: "PDF Document",
+          extensions: ["pdf"]
+        }],
+        defaultPath: `${id}.pdf`
+      });
+
+      if (destPath) {
+        await api.exportPdfReport(id, destPath);
+        alert("PDF 报告导出成功！");
+      }
+    } catch (error) {
+      console.error("Export PDF failed:", error);
+      alert("PDF 报告导出失败: " + String(error));
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
 
   useEffect(() => {
     if (id) {
@@ -102,6 +131,23 @@ export default function ReportViewer() {
             {report?.repo || "Unknown repository"}
           </p>
         </div>
+        {report && (
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={handleExportPdf}
+              disabled={isExportingPdf}
+              variant="outline"
+              className="flex items-center gap-2"
+            >
+              {isExportingPdf ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+              {isExportingPdf ? "Exporting PDF..." : "Export PDF"}
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Summary Cards */}

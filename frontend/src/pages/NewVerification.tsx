@@ -19,6 +19,8 @@ export default function NewVerification() {
     runVerification,
     projects,
     loadProjects,
+    profiles,
+    loadProfiles,
   } = useStore();
 
   const [useManagedProject, setUseManagedProject] = useState(true);
@@ -36,7 +38,8 @@ export default function NewVerification() {
 
   useEffect(() => {
     loadProjects();
-  }, [loadProjects]);
+    loadProfiles();
+  }, [loadProjects, loadProfiles]);
 
   // Handle project selection change
   useEffect(() => {
@@ -91,9 +94,23 @@ export default function NewVerification() {
     const requestParams: VerificationRequest = {
       ...form,
       since: form.since || undefined,
-      profile: form.profile || undefined,
       providers: form.providers || undefined,
     };
+
+    const selectedProfileName = form.profile;
+    const profileSummary = profiles.find((p) => p.name === selectedProfileName);
+    if (profileSummary) {
+      if (profileSummary.is_builtin) {
+        requestParams.profile = profileSummary.name;
+        requestParams.rules_file = undefined;
+      } else {
+        requestParams.profile = undefined;
+        requestParams.rules_file = profileSummary.file_path;
+      }
+    } else if (selectedProfileName) {
+      requestParams.profile = selectedProfileName;
+      requestParams.rules_file = undefined;
+    }
 
     // If utilizing database project integration, pass project details for auto-saves
     const projId = useManagedProject && selectedProjectId ? selectedProjectId : undefined;
@@ -234,15 +251,22 @@ export default function NewVerification() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="profile">规则集集 Profile (可选)</Label>
-                  <Input
+                  <Label htmlFor="profile">规则集 Profile (可选)</Label>
+                  <select
                     id="profile"
-                    placeholder="gcc-allocation"
-                    value={form.profile}
+                    value={form.profile || ""}
                     onChange={(e) =>
                       setForm({ ...form, profile: e.target.value })
                     }
-                  />
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <option value="">-- 选择规则集 (默认 gcc-allocation) --</option>
+                    {profiles.map((p) => (
+                      <option key={p.name} value={p.name}>
+                        {p.name} {p.is_builtin ? "(内置)" : "(自定义)"}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -348,9 +372,15 @@ export default function NewVerification() {
 }
 
 /*
-[For Future AI]
-Key Assumptions:
-1. `projects` loaded from global Zustand store represents all sqlite-registered entities. Selecting a project auto-prefills its repository name into the form input.
-2. Clicking a phase dynamically sets target rules_profile and milestone description text fields.
-3. Spawning `runVerification` executes the CLI command under the hood. If `projectId` and `phaseId` are defined, they are passed as secondary args to trigger sqlite db record insertions automatically.
+__ai_context__
+本组件为手动/项目触发验证的表单页面，负责选择项目和里程碑阶段、配置过滤时间和自定义规则集，并在终端中动态反馈校验日志。
 */
+
+// [For Future AI]
+// 1. Key Assumptions:
+//    - `projects` loaded from global Zustand store represents all sqlite-registered entities. Selecting a project auto-prefills its repository name into the form input.
+//    - Clicking a phase dynamically sets target rules_profile and milestone description text fields.
+//    - Spawning `runVerification` executes the CLI command under the hood. If `projectId` and `phaseId` are defined, they are passed as secondary args to trigger sqlite db record insertions automatically.
+//    - Profile dropdown resolves custom profile YAML paths disk locations dynamically.
+// 2. Dependencies on other modules:
+//    - useStore hooks, VerificationConsole.

@@ -176,7 +176,7 @@ function listOrNone(items) {
 function buildRuleSection(ruleEval) {
   if (!ruleEval.rules.length) return '- No parseable rules from milestone text.\n';
   return `${ruleEval.rules.map((r) => {
-    const icon = r.result.matched ? '✅' : '❌';
+    const icon = r.result.passed ? '✅' : '❌';
     const sourceTag = r.source ? ` [source: ${r.source}]` : '';
     const samples = r.result.sampleLinks.length
       ? r.result.sampleLinks.map((s) => `  - ${s.url} (matched: ${s.matchedKeywords.join(', ')})`).join('\n')
