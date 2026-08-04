@@ -1,43 +1,51 @@
-# gcc-milestone-agent (Node CLI)
+<p align="center">
+  <img src="./assets/readme/hero.svg" width="100%" alt="gcc-milestone-agent: verify grant milestones from public evidence and ship scored reports">
+</p>
 
-MVP+ CLI for GCC hackathon submission: verify grant milestone progress using GitHub evidence + rule checks, then output markdown/JSON/HTML reports.
+# gcc-milestone-agent
+
+**CLI agent for GCC milestone verification.** Collect multi-source public evidence, evaluate rules, score progress, and write markdown / JSON / HTML reports reviewers can audit.
+
+中文说明：[简明版](./README.zh-CN.quick.md) · [详细版](./README.zh-CN.full.md)
 
 ## Sponsor
 
-This project is sponsored by [GCC](https://www.gccofficial.org/) (Global Chinese Community of Universal Digital Commons).
-
-GCC is a Chinese-speaking public goods funding community that supports digital commons, open-source software, privacy and security, decentralized governance, and other future-facing public goods projects. Its goal is to connect Chinese-speaking communities with the global public goods ecosystem and make digital commons funding more sustainable.
+Sponsored by [GCC](https://www.gccofficial.org/) (Global Chinese Community of Universal Digital Commons) — a Chinese-speaking public goods funding community for digital commons, open-source, privacy, security, and decentralized governance.
 
 - Website: [gccofficial.org](https://www.gccofficial.org/)
 - X/Twitter: [@GCCofCommons](https://x.com/GCCofCommons)
 
-中文说明：
-- 简明版：`README.zh-CN.quick.md`
-- 详细版：`README.zh-CN.full.md`
+## What you get
+
+<p align="center">
+  <img src="./assets/readme/workflow.svg" width="100%" alt="Pipeline: providers collect evidence, rule engine matches and explains, scorer weighs activity and rules, output ships md json html reports">
+</p>
+
+| Result | Meaning |
+|--------|---------|
+| **Evidence** | Commits, PRs, issues, CI, npm, contracts, articles, Discord, Twitter, and more — concurrent providers, one failure does not block the rest |
+| **Rules** | Milestone text or YAML profiles (`gcc-allocation` / custom `--rules-file`) with source filters and evidence snippets |
+| **Score** | Activity 60% + rule pass rate 40% + provider bonus (up to +20). Thresholds: met ≥70, partially_met ≥40 |
+| **Reports** | Markdown, JSON, interactive HTML (filters + reviewer dashboard + phase timeline) |
 
 ## Quick start
 
 ```bash
-cd projects/gcc-milestone-agent
 npm install
 
-# Basic run (markdown)
+# Basic: markdown report from GitHub evidence
 node src/cli.js \
   --repo gcc-foundation/gcc-openclaw-grants \
   --milestone "submission template, issue discussion, open source workflow" \
   --since 2026-03-01 \
   --out ./demo-report.md
+```
 
-# Advanced run (markdown + json + custom rules)
-node src/cli.js \
-  --repo gcc-foundation/gcc-openclaw-grants \
-  --milestone "submission template, issue discussion, open source workflow" \
-  --since 2026-03-01 \
-  --out ./demo-report.md \
-  --json-out ./demo-report.json \
-  --rules-file ./templates/rules.example.yaml
+Optional binary name after install / link: `milestone-agent`.
 
-# GCC profile run
+### GCC profile (markdown + JSON)
+
+```bash
 node src/cli.js \
   --repo gcc-foundation/gcc-openclaw-grants \
   --milestone "GCC allocation verification" \
@@ -45,8 +53,11 @@ node src/cli.js \
   --since 2026-03-01 \
   --out ./demo-gcc-report.md \
   --json-out ./demo-gcc-report.json
+```
 
-# Multi-source run (all providers)
+### Multi-source + HTML
+
+```bash
 node src/cli.js \
   --repo gcc-foundation/gcc-openclaw-grants \
   --milestone "GCC allocation verification" \
@@ -54,18 +65,13 @@ node src/cli.js \
   --providers github-api,github-actions,github-community,npm-registry,url-checker \
   --since 2026-03-01 \
   --out ./demo-full-report.md \
-  --json-out ./demo-full-report.json
+  --json-out ./demo-full-report.json \
+  --html-out ./demo-full-report.html
+```
 
-# Optional LLM semantic mode
-OPENAI_API_KEY=your_openai_key node src/cli.js \
-  --repo gcc-foundation/gcc-openclaw-grants \
-  --milestone "GCC allocation verification" \
-  --profile gcc-allocation \
-  --semantic-mode llm \
-  --llm-model gpt-5-mini \
-  --since 2026-03-01 \
-  --out ./demo-llm-report.md
-# GCC Milestone Verification run (Multi-source Web3 Edition)
+### Web3 / community signals
+
+```bash
 node src/cli.js \
   --repo SomeOrg/SomeWeb3Repo \
   --milestone "Deploy smart contract, write documentation, reach 1000 members" \
@@ -77,30 +83,41 @@ node src/cli.js \
   --out ./demo-web3-report.md
 ```
 
-## CLI options
+### Optional LLM semantic mode
 
-- `--repo <owner/name>` required
-- `--milestone <text>` required
-- `--config <path>` optional YAML config path (default `.gcc-milestone.yaml`)
-- `--phase <id>` optional milestone phase id from `.gcc-milestone.yaml`
-- `--since <ISO date>` optional
-- `--out <path>` markdown report path (default `./report.md`)
-- `--json-out <path>` optional JSON report path
-- `--html-out <path>` optional HTML report path
-- `--reports-dir <path>` directory for phase reports and dependency lookup (default `reports` in phase mode)
-- `--rules-file <path>` optional YAML rules file
-- `--profile <name>` built-in rule profile (`gcc-allocation`)
-- `--providers <list>` comma-separated evidence providers (default: `github-api`)
-- `--contract-address <address>` optional smart contract address to verify
-- `--etherscan-url <url>` Etherscan-compatible API URL (default: `https://api.etherscan.io/api`)
-- `--article-urls <urls>` comma-separated list of article URLs to crawl and verify
-- `--discord-invite <code_or_url>` Discord invite code or URL to check community metrics
-- `--semantic-mode <mode>` semantic mode (`heuristic` or `llm`, default `heuristic`)
-- `--llm-model <name>` OpenAI model used when `--semantic-mode llm` is set (default `gpt-5-mini`)
+```bash
+OPENAI_API_KEY=your_openai_key node src/cli.js \
+  --repo gcc-foundation/gcc-openclaw-grants \
+  --milestone "GCC allocation verification" \
+  --profile gcc-allocation \
+  --semantic-mode llm \
+  --llm-model gpt-5-mini \
+  --since 2026-03-01 \
+  --out ./demo-llm-report.md
+```
+
+LLM mode is assistive — keep human review for final decisions.
+
+## Providers
+
+| Provider | What it collects |
+|----------|------------------|
+| `github-api` | Commits, PRs, issues, releases |
+| `github-actions` | CI/CD workflow runs, success rate |
+| `github-community` | Stars, forks, contributors |
+| `github-discussions` | Discussion threads and top participants |
+| `npm-registry` | Package publish status |
+| `url-checker` | README external URL reachability |
+| `etherscan-api` | Contract creation date and open-source status |
+| `article-crawler` | Full-text extraction (Mirror, Notion, …) via Playwright |
+| `discord-api` | Approximate members & online count (no bot token) |
+| `twitter-browser` | Profile metrics via Playwright + optional Vision AI |
+
+Default provider list is `github-api`. Pass a comma-separated `--providers` list to expand.
 
 ## Phase-based milestones
 
-`.gcc-milestone.yaml` can define milestone phases:
+Define phases in `.gcc-milestone.yaml` (or pass `--config <path>`):
 
 ```yaml
 repo: owner/name
@@ -116,58 +133,63 @@ milestones:
     dependsOn: M1
 ```
 
-Run one phase:
-
 ```bash
 node src/cli.js --phase M2
 ```
 
-Phase mode is opt-in. Without `--phase`, the CLI keeps the old single `--milestone` behavior. Dependency checks scan `reportsDir` for prior phase JSON reports. Missing or `not_met` dependencies produce warnings but do not block the run.
+- Phase mode is **opt-in**. Without `--phase`, use single-run `--milestone` as usual.
+- Dependency lookup reads prior phase JSON under `reportsDir`. Missing or `not_met` dependencies **warn** but do not block.
+- Phase runs compile a **Phase Progress Timeline** in markdown and HTML.
+- Default outputs become timestamped files under `reportsDir` (explicit `--out` / `--json-out` / `--html-out` still win). A phase-aware JSON copy is always written for the next dependency check.
 
-When phase mode is active, the CLI automatically scans historical reports in `reportsDir` and compiles a **Phase Progress Timeline**. If `milestones` configuration is provided, it arranges them in order, dedupes them keeping the latest attempt, and includes pending phases. This timeline table is displayed in the Markdown report and rendered as a horizontal visual timeline with status-colored badges and a pulsing aura animation for the current phase in the HTML report.
+## CLI options
 
-When phase mode is active, missing output paths default to timestamped files in `reportsDir`:
+| Option | Description |
+|--------|-------------|
+| `--repo <owner/name>` | Required target repository |
+| `--milestone <text>` | Required milestone text (single-run mode) |
+| `--config <path>` | YAML config (default `.gcc-milestone.yaml`) |
+| `--phase <id>` | Phase id from config |
+| `--since <ISO date>` | Activity window start |
+| `--out <path>` | Markdown report (default `./report.md`) |
+| `--json-out <path>` | JSON report |
+| `--html-out <path>` | HTML report |
+| `--reports-dir <path>` | Phase reports / dependency dir (default `reports`) |
+| `--rules-file <path>` | External YAML rules (overrides `--profile`) |
+| `--profile <name>` | Built-in profile (`gcc-allocation`) |
+| `--providers <list>` | Comma-separated providers |
+| `--contract-address <address>` | Smart contract for `etherscan-api` |
+| `--etherscan-url <url>` | Etherscan-compatible API URL |
+| `--article-urls <urls>` | Comma-separated article URLs |
+| `--discord-invite <code_or_url>` | Discord invite for community metrics |
+| `--twitter-handle <handle>` | Twitter handle for `twitter-browser` |
+| `--telegram-group <username_or_url>` | Telegram group for community metrics |
+| `--batch <path>` | Batch config file path |
+| `--semantic-mode <mode>` | `heuristic` (default) or `llm` |
+| `--llm-model <name>` | OpenAI model when semantic mode is `llm` |
 
-```text
-reports/owner_name-M2-20260514_103012.md
-reports/owner_name-M2-20260514_103012.json
-reports/owner_name-M2-20260514_103012.html
+CLI flags override config. Config keys use camelCase (`rulesFile`, `jsonOut`, `htmlOut`, `reportsDir`).
+
+### Rules YAML shape
+
+```yaml
+rules:
+  - id: R1
+    text: Description of the rule
+    keywords: [keyword1, keyword2]
+    source: github-api   # optional; must match PROVIDER_SOURCES exactly
 ```
-
-Explicit `--out`, `--json-out`, and `--html-out` still win for the user-requested output path. Phase mode still writes a phase-aware JSON report to `reportsDir` for future dependency lookup. If `--json-out` points somewhere else, both JSON files are written.
-
-## Available providers
-
-| Provider | What it collects |
-|----------|------------------|
-| `github-api` | Commits, PRs, issues, releases |
-| `github-actions` | CI/CD workflow runs, success rate |
-| `github-community` | Stars, forks, contributors |
-| `github-discussions` | GitHub Discussions top participants & threads |
-| `npm-registry` | npm package publish status |
-| `url-checker` | README external URL reachability |
-| `etherscan-api` | Smart contract creation date & open source status |
-| `article-crawler` | Playwright-based article full-text extraction (Mirror, Notion, etc.) |
-| `discord-api` | Discord server approximate members & online count (No Bot Token required) |
-| `twitter-browser` | Twitter profile metrics extraction via Vision AI & Playwright screenshot |
 
 ## Environment
 
-Optional (recommended for higher GitHub API rate limits):
-
 ```bash
-export GITHUB_TOKEN=your_github_pat
-# or
-export GH_TOKEN=your_github_pat
-
-# optional (for Etherscan contract verification)
-export ETHERSCAN_API_KEY=your_etherscan_key
-
-# optional (for --semantic-mode llm & twitter Vision AI extraction)
-export OPENAI_API_KEY=your_openai_key
+export GITHUB_TOKEN=your_github_pat   # or GH_TOKEN — higher GitHub rate limits
+export ETHERSCAN_API_KEY=your_key     # contract verification
+export OPENAI_API_KEY=your_key        # --semantic-mode llm + Twitter Vision AI
 ```
 
-Note: Browsing capabilities (Article Crawler, Twitter) require Playwright dependencies:
+Browser providers (article crawler, Twitter) need Chromium once:
+
 ```bash
 npx playwright install chromium
 ```
@@ -182,51 +204,11 @@ npm run demo:gcc
 npm run demo:html
 ```
 
-## Current status
+## Status
 
-- ✅ CLI scaffolding complete
-- ✅ GitHub REST collector connected (commits/PR/issues/releases)
-- ✅ Rule engine v1 (milestone parsing + YAML external rules)
-- ✅ Markdown + JSON + HTML triple output
-- ✅ Retry handling for GitHub transient failures (5xx/429)
-- ✅ Unit tests (Node test runner)
-- ✅ Provider architecture (multi-source evidence collection)
-- ✅ GitHub Actions, Community, npm, URL checker providers
-- ✅ Source-filtered rule matching (`rules[].source`)
-- ✅ GitHub API pagination (follow `Link` header, capped by max pages)
-- ✅ Provider bonus scoring (CI/community/npm/URL signals)
-- ✅ Per-rule explainability snippets (quoted evidence text)
-- ✅ Interactive HTML report filters (by semantic verdict/source)
-- ✅ Reviewer dashboard view (KPI + verdict distribution)
-- ✅ Semantic reasoning v2 (semanticCoverage + sourceDiversity confidence signal)
-- ✅ Optional LLM semantic judgment mode (`--semantic-mode llm`)
-- ✅ JSDoc typing enhancement for core semantic modules
-- ✅ Etherscan API smart contract verification
-- ✅ Playwright headless browser automation
-- ✅ Multi-source semantic evaluation (Articles, Twitter screenshots)
-- ✅ Discord Invite API for seamless community metrics
-- ✅ Unit/integration tests passing via `npm test`
-- ✅ Phase-based milestone definitions via `.gcc-milestone.yaml` and `--phase`
-- ✅ Phase progress timeline visualization in Markdown and HTML reports
-- ⚠️ LLM mode is assistive and still requires human final review
+**v0.4.0** — multi-provider evidence, YAML / profile rules, scoring with explainability, markdown + JSON + HTML reports, phase milestones with dependency warnings and timeline, optional LLM semantic assist.
 
-## Next milestones
-
-1. Plan and implement the formal frontend + product dashboard (Web dashboard or Tauri desktop app)
-2. Publish as npm package (requires npm auth and final package name check)
-
-## npm publish
-
-```bash
-# verify package contents
-npm run pack:check
-
-# login once
-npm login
-
-# publish
-npm run publish:public
-```
+Frontend under `frontend/` is a separate Vite + React + Tauri app (not part of the CLI package).
 
 ## License
 

@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="title desc">
+  <title id="title">How milestone verification works</title>
+  <desc id="desc">Evidence providers feed a rule engine that scores activity and rule pass rate, then writes markdown, JSON, and HTML reports.</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#5B9FD4"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="360" rx="22" fill="#0B0F14"/>
+  <rect x="1" y="1" width="1198" height="358" rx="21" fill="none" stroke="#243041" stroke-width="1"/>
+
+  <text x="56" y="52" fill="#6B8AAB" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" letter-spacing="2">PIPELINE</text>
+  <text x="56" y="88" fill="#E8EEF5" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, sans-serif" font-size="28" font-weight="700">Evidence in. Scored report out.</text>
+
+  <!-- Stage 1: Providers -->
+  <g transform="translate(48 120)">
+    <rect x="0" y="0" width="250" height="196" rx="14" fill="#101820" stroke="#2A3A4E"/>
+    <text x="20" y="36" fill="#5B9FD4" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14">01  PROVIDERS</text>
+    <text x="20" y="68" fill="#E8EEF5" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="18" font-weight="600">Collect evidence</text>
+    <text x="20" y="100" fill="#A8B8CC" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="15">GitHub · Actions · npm</text>
+    <text x="20" y="124" fill="#A8B8CC" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="15">Etherscan · Discord</text>
+    <text x="20" y="148" fill="#A8B8CC" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="15">Articles · Twitter</text>
+    <text x="20" y="176" fill="#6B8AAB" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">concurrent · fail-soft</text>
+  </g>
+
+  <line x1="312" y1="218" x2="348" y2="218" stroke="#5B9FD4" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Stage 2: Rules -->
+  <g transform="translate(362 120)">
+    <rect x="0" y="0" width="250" height="196" rx="14" fill="#101820" stroke="#2A3A4E"/>
+    <text x="20" y="36" fill="#E8A838" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14">02  RULE ENGINE</text>
+    <text x="20" y="68" fill="#E8EEF5" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="18" font-weight="600">Match &amp; explain</text>
+    <text x="20" y="100" fill="#A8B8CC" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="15">Milestone text → rules</text>
+    <text x="20" y="124" fill="#A8B8CC" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="15">YAML profile / custom file</text>
+    <text x="20" y="148" fill="#A8B8CC" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="15">Source-filtered matching</text>
+    <text x="20" y="176" fill="#6B8AAB" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">snippets + confidence</text>
+  </g>
+
+  <line x1="626" y1="218" x2="662" y2="218" stroke="#5B9FD4" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Stage 3: Score -->
+  <g transform="translate(676 120)">
+    <rect x="0" y="0" width="220" height="196" rx="14" fill="#101820" stroke="#2A3A4E"/>
+    <text x="20" y="36" fill="#3D9A6A" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14">03  SCORE</text>
+    <text x="20" y="68" fill="#E8EEF5" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="18" font-weight="600">Weigh signals</text>
+    <text x="20" y="100" fill="#A8B8CC" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="15">Activity 60%</text>
+    <text x="20" y="124" fill="#A8B8CC" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="15">Rule pass 40%</text>
+    <text x="20" y="148" fill="#A8B8CC" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="15">Provider bonus ≤ +20</text>
+    <text x="20" y="176" fill="#6B8AAB" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">met ≥70 · partial ≥40</text>
+  </g>
+
+  <line x1="910" y1="218" x2="946" y2="218" stroke="#5B9FD4" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Stage 4: Reports -->
+  <g transform="translate(960 120)">
+    <rect x="0" y="0" width="192" height="196" rx="14" fill="#101820" stroke="#2A3A4E"/>
+    <text x="18" y="36" fill="#C8D4E4" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14">04  OUTPUT</text>
+    <text x="18" y="68" fill="#E8EEF5" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="18" font-weight="600">Ship reports</text>
+    <rect x="18" y="90" width="72" height="28" rx="6" fill="#16202C" stroke="#2A3A4E"/>
+    <text x="32" y="109" fill="#A8B8CC" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">.md</text>
+    <rect x="100" y="90" width="72" height="28" rx="6" fill="#16202C" stroke="#2A3A4E"/>
+    <text x="112" y="109" fill="#A8B8CC" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">.json</text>
+    <rect x="18" y="130" width="72" height="28" rx="6" fill="#16202C" stroke="#2A3A4E"/>
+    <text x="30" y="149" fill="#A8B8CC" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">.html</text>
+    <text x="18" y="176" fill="#6B8AAB" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">phase timeline</text>
+  </g>
+</svg>
